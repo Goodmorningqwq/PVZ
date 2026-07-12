@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { connect, disconnect, onGameOver, onRoomJoined } from './network';
-import LobbyScene from './scenes/LobbyScene';
 import GameScene from './scenes/GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT } from './scenes/GameScene/constants';
 import RoomMenu from './RoomMenu';
+import WaitingRoom from './WaitingRoom';
 import './App.css';
 
 type HudState = {
@@ -14,6 +14,8 @@ type HudState = {
   sunText: string;
   demoMode: boolean;
 };
+
+type Phase = 'menu' | 'waiting' | 'playing';
 
 const initialHud: HudState = { tick: 0, roomId: '', playerId: '', sunText: '', demoMode: false };
 
@@ -41,7 +43,7 @@ function getOrCreateSessionId() {
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [connected, setConnected] = useState(false);
-  const [socketStatus, setSocketStatus] = useState('Initializing...');
+  const [socketStatus, setSocketStatus] = useState('Connecting...');
   const [hud, setHud] = useState<HudState>(initialHud);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -54,13 +56,18 @@ export default function App() {
   // roomId starts from the URL (so shared links still work) but is otherwise
   // controlled by the room menu below, not required to be hand-typed into the URL.
   const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
-  const hasActiveGame = demoMode || Boolean(activeRoomId);
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (demoMode) return 'playing';
+    if (getSearchParam('room')) return 'waiting';
+    return 'menu';
+  });
 
   function joinRoom(roomId: string) {
     const url = new URL(window.location.href);
     url.searchParams.set('room', roomId);
     window.history.replaceState({}, '', url.toString());
     setActiveRoomId(roomId);
+    setPhase('waiting');
   }
 
   function playDemo() {
@@ -81,8 +88,41 @@ export default function App() {
     }
   }
 
+  // Socket lifecycle: connect as soon as a room is chosen, well before Phaser
+  // ever mounts. The "waiting for opponent" screen is plain HTML (WaitingRoom)
+  // rather than Phaser canvas text, so there's nothing to render until the
+  // match actually starts.
   useEffect(() => {
-    if (!hasActiveGame || !containerRef.current) {
+    if (demoMode || phase === 'menu' || !activeRoomId) {
+      return;
+    }
+
+    setSocketStatus('Connecting...');
+    connect({ roomId: activeRoomId, playerId });
+
+    const offRoomJoined = onRoomJoined((payload) => {
+      const joinedRoomId = payload?.roomId ? String(payload.roomId) : activeRoomId;
+      const joinedPlayerId = payload?.playerId ? String(payload.playerId) : playerId;
+
+      setHud((current) => ({ ...current, roomId: joinedRoomId, playerId: joinedPlayerId }));
+      setSocketStatus('Room joined');
+      setConnected(true);
+      setPhase('playing');
+    });
+
+    return () => {
+      offRoomJoined();
+      disconnect();
+    };
+    // Deliberately depends on (phase === 'menu') rather than `phase` itself:
+    // this effect should stay connected across the waiting -> playing
+    // transition, not tear down and reconnect when the match starts.
+  }, [demoMode, phase === 'menu', activeRoomId, playerId]);
+
+  // Phaser only mounts once there's actually a game to render: immediately
+  // for demo mode, or once the opponent has joined for a live match.
+  useEffect(() => {
+    if (phase !== 'playing' || !containerRef.current) {
       return;
     }
 
@@ -98,13 +138,17 @@ export default function App() {
         width: GAME_WIDTH,
         height: GAME_HEIGHT,
       },
-      scene: [LobbyScene, GameScene],
+      scene: [GameScene],
     });
 
     game.registry.set('roomId', roomId);
     game.registry.set('playerId', playerId);
     game.registry.set('demoMode', demoMode);
     setHud((current) => ({ ...current, roomId, playerId, demoMode }));
+
+    if (demoMode) {
+      setSocketStatus('Demo mode');
+    }
 
     const offHudUpdate = (() => {
       const handler = (payload: { tick: number; sunText: string }) => {
@@ -113,37 +157,6 @@ export default function App() {
       game.events.on('hud-update', handler);
       return () => game.events.off('hud-update', handler);
     })();
-
-    if (demoMode) {
-      game.scene.start('GameScene');
-      setSocketStatus('Demo mode');
-    } else if (roomId) {
-      connect({ roomId, playerId });
-      setSocketStatus('Connecting...');
-    }
-
-    const offRoomJoined = onRoomJoined((payload) => {
-      const joinedRoomId = payload?.roomId ? String(payload.roomId) : roomId;
-      const joinedPlayerId = payload?.playerId ? String(payload.playerId) : playerId;
-
-      if (payload?.roomId) {
-        game.registry.set('roomId', joinedRoomId);
-      }
-
-      if (payload?.playerId) {
-        game.registry.set('playerId', joinedPlayerId);
-      }
-
-      if (payload?.opponentId) {
-        game.registry.set('opponentId', String(payload.opponentId));
-      }
-
-      setHud((current) => ({ ...current, roomId: joinedRoomId, playerId: joinedPlayerId }));
-      game.scene.stop('LobbyScene');
-      game.scene.start('GameScene');
-      setSocketStatus('Room joined');
-      setConnected(true);
-    });
 
     const offGameOver = onGameOver((payload) => {
       const gameScene = game.scene.getScene('GameScene');
@@ -154,15 +167,17 @@ export default function App() {
 
     return () => {
       offHudUpdate();
-      offRoomJoined();
       offGameOver();
-      disconnect();
       game.destroy(true);
     };
-  }, [hasActiveGame, demoMode, playerId, activeRoomId]);
+  }, [phase, demoMode, playerId, activeRoomId]);
 
-  if (!hasActiveGame) {
+  if (phase === 'menu') {
     return <RoomMenu onJoin={joinRoom} onPlayDemo={playDemo} />;
+  }
+
+  if (phase === 'waiting') {
+    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} />;
   }
 
   return (
