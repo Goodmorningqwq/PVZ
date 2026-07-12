@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { emitPlacePlant, getLatestState } from '../../network';
-import { GRASS_COLOR, LANE_COLOR, PLANT_ASSET_KEYS, SLOT_RADIUS, getSlotPositions } from './constants';
+import { GRASS_COLOR, LANE_COLOR, PLANT_ASSET_KEYS, SLOT_MARKER_COLOR, SLOT_RADIUS, getSlotPositions } from './constants';
 import { PlantRenderer, ZombieRenderer } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
@@ -27,7 +27,7 @@ export default class GameScene extends Phaser.Scene {
     this.plantRenderer = new PlantRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);
 
-    this.cameras.main.setBackgroundColor('#18251a');
+    this.cameras.main.setBackgroundColor('#2f4a2a');
     this.background = this.add.graphics();
     this.slotMarkers = this.add.graphics();
 
@@ -186,9 +186,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   drawSlotMarkers() {
+    // Styled like the app's input/dashed-box treatment (.menu-pin-input,
+    // .waiting-code) rather than a bare thin outline, so open slots read as
+    // "placeholder cards" consistent with the rest of the UI.
     this.slotMarkers.clear();
-    this.slotMarkers.lineStyle(2, 0xaebf9d, 0.35);
     for (const slot of SLOT_POSITIONS) {
+      this.slotMarkers.fillStyle(0xffffff, 0.14);
+      this.slotMarkers.fillCircle(slot.x, slot.y, SLOT_RADIUS);
+      this.slotMarkers.lineStyle(2, SLOT_MARKER_COLOR, 0.55);
       this.slotMarkers.strokeCircle(slot.x, slot.y, SLOT_RADIUS);
     }
   }
@@ -200,7 +205,7 @@ export default class GameScene extends Phaser.Scene {
     this.background.fillRect(0, 0, width, height);
     this.background.fillStyle(LANE_COLOR, 1);
     this.background.fillRoundedRect(48, height * 0.5 - 70, Math.max(width - 96, 0), 140, 24);
-    this.background.fillStyle(0x354c2e, 1);
+    this.background.fillStyle(0x6a9a5a, 1);
     this.background.fillRect(48, height * 0.5 - 3, Math.max(width - 96, 0), 6);
   }
 }

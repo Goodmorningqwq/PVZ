@@ -175,7 +175,15 @@ export default function App() {
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: containerRef.current,
-      backgroundColor: '#18251a',
+      backgroundColor: '#2f4a2a',
+      // The canvas renders at a fixed 800x400 logical resolution (see the
+      // coordinate-system fix above) then gets CSS-scaled up by Scale.FIT to
+      // fill the real window — on most screens that's a 2-3x stretch, which
+      // looks soft/blurry without a matching bump in backing-store
+      // resolution. `resolution` renders at devicePixelRatio internally
+      // while keeping game-logic coordinates at 800x400, so it looks sharp
+      // without touching any entity/slot coordinate math.
+      resolution: window.devicePixelRatio || 1,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -1,7 +1,12 @@
 export const TOWER_COLOR = 0x3f8f4a;
-export const ZOMBIE_COLOR = 0x7d5a3c;
-export const LANE_COLOR = 0x587248;
-export const GRASS_COLOR = 0x1e2f1c;
+export const ZOMBIE_COLOR = 0x8a6242;
+// Softer, warmer palette than the original near-black green — chosen to sit
+// visually closer to the white-card/purple-gradient theme used everywhere
+// else in the app (menu, waiting room, shop bar) instead of reading as a
+// completely separate dark "game mode".
+export const LANE_COLOR = 0x7cb06a;
+export const GRASS_COLOR = 0x3a5c34;
+export const SLOT_MARKER_COLOR = 0xf2f5ee;
 
 // Fixed logical game resolution. The backend sends entity coordinates in this
 // space (see NETWORKING_CONTRACT_REVISED.md "Constants (Shared)"). The Phaser
