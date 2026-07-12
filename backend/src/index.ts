@@ -1,354 +1,299 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 
-// Load environment variables
 dotenv.config();
 
-// Initialize Express and HTTP server
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+  },
 });
 
-// Configuration
-const PORT = process.env.PORT || 3000;
-const TICK_RATE = parseInt(process.env.TICK_RATE || '15');
-const MAX_CONCURRENT_MATCHES = parseInt(process.env.MAX_CONCURRENT_MATCHES || '50');
+const PORT = Number(process.env.PORT || 3000);
+const TICK_RATE = Number(process.env.TICK_RATE || 10);
 
-// Logger utility
-const log = (level: string, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [${level}] ${message}`, data || '');
+const PLANT_COSTS: Record<string, number> = {
+  peashooter: 100,
+  sunflower: 50,
+  wallnut: 50,
 };
 
-// Game state management
-interface Player {
-  id: string;
-  name: string;
+const BOARD_WIDTH = 800;
+const ZOMBIE_SPEED = 10;
+
+type PlayerState = {
+  playerId: string;
   socketId: string;
-}
+};
 
-interface Match {
+type TowerState = {
   id: string;
-  playerA: Player;
-  playerB: Player;
-  wave: number;
+  x: number;
+  y: number;
+  type: string;
+  owner: string;
+  hp: number;
+};
+
+type ZombieState = {
+  id: string;
+  x: number;
+  y: number;
+  hp: number;
+};
+
+type RoomState = {
+  roomId: string;
+  players: PlayerState[];
+  towers: TowerState[];
+  zombies: ZombieState[];
+  sun: Record<string, number>;
   tick: number;
-  playerA_sun: number;
-  playerB_sun: number;
-  playerA_board: any[];
-  playerB_board: any[];
-  zombies: any[];
-  gameStatus: 'WAITING' | 'PLAYING' | 'ENDED';
-  winner?: string;
+  gameOver: boolean;
+  winnerId?: string;
+};
+
+const rooms = new Map<string, RoomState>();
+const socketToRoom = new Map<string, string>();
+
+function log(level: string, message: string, data?: unknown) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${level}] ${message}`, data ?? '');
 }
 
-const matches = new Map<string, Match>();
-const playerToMatch = new Map<string, string>();
-
-// Helper functions
-function createMatch(playerA: Player, playerB: Player): Match {
-  return {
-    id: uuidv4(),
-    playerA,
-    playerB,
-    wave: 0,
-    tick: 0,
-    playerA_sun: 50,
-    playerB_sun: 50,
-    playerA_board: [],
-    playerB_board: [],
-    zombies: [],
-    gameStatus: 'PLAYING'
-  };
+function sanitizeId(value: unknown): string {
+  return String(value ?? '').trim();
 }
 
-function broadcastToMatch(matchId: string, event: string, data: any) {
-  const match = matches.get(matchId);
-  if (match) {
-    io.to(match.playerA.socketId).emit(event, data);
-    io.to(match.playerB.socketId).emit(event, data);
+function getOrCreateRoom(roomId: string): RoomState {
+  const existingRoom = rooms.get(roomId);
+  if (existingRoom) {
+    return existingRoom;
   }
+
+  const createdRoom: RoomState = {
+    roomId,
+    players: [],
+    towers: [],
+    zombies: [{ id: `z-${uuidv4()}`, x: BOARD_WIDTH - 60, y: 180, hp: 20 }],
+    sun: {},
+    tick: 0,
+    gameOver: false,
+  };
+
+  rooms.set(roomId, createdRoom);
+  return createdRoom;
 }
 
-// Express middleware
+function emitRoomJoined(room: RoomState) {
+  const [playerA, playerB] = room.players;
+  if (!playerA || !playerB) {
+    return;
+  }
+
+  io.to(playerA.socketId).emit('room_joined', {
+    roomId: room.roomId,
+    playerId: playerA.playerId,
+    opponentId: playerB.playerId,
+  });
+
+  io.to(playerB.socketId).emit('room_joined', {
+    roomId: room.roomId,
+    playerId: playerB.playerId,
+    opponentId: playerA.playerId,
+  });
+}
+
+function broadcastState(room: RoomState) {
+  io.to(room.roomId).emit('state_update', {
+    tick: room.tick,
+    towers: room.towers.map((tower) => ({ ...tower })),
+    zombies: room.zombies.map((zombie) => ({ ...zombie })),
+    sun: { ...room.sun },
+  });
+}
+
+function endGame(room: RoomState, winnerId: string) {
+  if (room.gameOver) {
+    return;
+  }
+
+  room.gameOver = true;
+  room.winnerId = winnerId;
+  io.to(room.roomId).emit('game_over', {
+    winnerId,
+    reason: 'opponent_lawn_breached',
+  });
+}
+
+function advanceRoom(room: RoomState) {
+  if (room.gameOver || room.players.length < 2) {
+    return;
+  }
+
+  room.tick += 1;
+
+  for (const player of room.players) {
+    room.sun[player.playerId] = (room.sun[player.playerId] ?? 50) + 1;
+  }
+
+  for (const zombie of room.zombies) {
+    zombie.x -= ZOMBIE_SPEED;
+  }
+
+  if (room.zombies.some((zombie) => zombie.x <= 0)) {
+    endGame(room, room.players[0]?.playerId || room.players[1]?.playerId || 'unknown');
+  }
+
+  broadcastState(room);
+}
+
+function placePlant(room: RoomState, playerId: string, x: number, y: number) {
+  const cost = PLANT_COSTS.peashooter;
+  const currentSun = room.sun[playerId] ?? 0;
+
+  if (currentSun < cost) {
+    return { success: false, message: 'Not enough sun' };
+  }
+
+  if (room.towers.some((tower) => tower.x === x && tower.y === y)) {
+    return { success: false, message: 'Tile occupied' };
+  }
+
+  room.sun[playerId] = currentSun - cost;
+  room.towers.push({
+    id: `t-${uuidv4()}`,
+    x,
+    y,
+    type: 'peashooter',
+    owner: playerId,
+    hp: 100,
+  });
+
+  return { success: true };
+}
+
 app.use(express.json());
 
-// CORS headers
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   next();
 });
 
-// Health check endpoint (for keep-alive)
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    matches: matches.size
+    rooms: rooms.size,
   });
 });
 
-// Get server stats
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', (_req, res) => {
   res.json({
-    activeMatches: matches.size,
+    rooms: rooms.size,
     connectedPlayers: io.engine.clientsCount,
-    maxConcurrentMatches: MAX_CONCURRENT_MATCHES,
     tickRate: TICK_RATE,
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
-// Socket.io event handlers
-io.on('connection', (socket) => {
+io.on('connection', (socket: Socket) => {
   log('INFO', `Player connected: ${socket.id}`);
 
-  // Player joins a room/match
-  socket.on('join_room', (data: { roomId: string; playerName: string }, callback) => {
-    const { roomId, playerName } = data;
+  socket.on('join_room', (data: { roomId?: string; playerId?: string }) => {
+    const roomId = sanitizeId(data?.roomId);
+    const playerId = sanitizeId(data?.playerId);
 
-    try {
-      const player: Player = {
-        id: uuidv4(),
-        name: playerName,
-        socketId: socket.id
-      };
-
-      socket.join(roomId);
-
-      // Check if room already has players
-      const playersInRoom = io.sockets.adapter.rooms.get(roomId)?.size || 0;
-
-      if (playersInRoom === 1) {
-        // First player joins
-        socket.data = { player, roomId, isPlayerA: true };
-        log('INFO', `Player A joined room ${roomId}: ${playerName}`);
-        callback({ success: true, message: 'Waiting for opponent...' });
-      } else if (playersInRoom === 2) {
-        // Second player joins - start match
-        socket.data = { player, roomId, isPlayerB: true };
-
-        const sockets = Array.from(io.sockets.adapter.rooms.get(roomId)?.values() || []);
-        if (sockets.length === 2) {
-          const playerASocket = io.sockets.sockets.get(sockets[0]);
-          const playerBSocket = io.sockets.sockets.get(sockets[1]);
-
-          if (playerASocket?.data && playerBSocket?.data) {
-            const playerA = playerASocket.data.player;
-            const playerB = playerBSocket.data.player;
-
-            const match = createMatch(playerA, playerB);
-            matches.set(match.id, match);
-            playerToMatch.set(playerA.id, match.id);
-            playerToMatch.set(playerB.id, match.id);
-
-            // Notify both players
-            io.to(roomId).emit('match_found', {
-              matchId: match.id,
-              playerA: { id: playerA.id, name: playerA.name },
-              playerB: { id: playerB.id, name: playerB.name },
-              startTime: new Date().toISOString()
-            });
-
-            log('INFO', `Match created: ${match.id} (${playerA.name} vs ${playerB.name})`);
-          }
-        }
-        callback({ success: true, message: 'Match started!' });
-      } else {
-        callback({ success: false, message: 'Room is full' });
-      }
-    } catch (error) {
-      log('ERROR', 'Error joining room', error);
-      callback({ success: false, message: 'Error joining room' });
-    }
-  });
-
-  // Player places a plant
-  socket.on('place_plant', (data: { matchId: string; plant: string; x: number; y: number }, callback) => {
-    const { matchId, plant, x, y } = data;
-    const match = matches.get(matchId);
-
-    if (!match) {
-      callback({ success: false, message: 'Match not found' });
+    if (!roomId || !playerId) {
       return;
     }
 
-    try {
-      // Determine which player is placing
-      const isPlayerA = socket.data?.player?.id === match.playerA.id;
-      const playerBoard = isPlayerA ? match.playerA_board : match.playerB_board;
-      const playerSun = isPlayerA ? match.playerA_sun : match.playerB_sun;
+    const room = getOrCreateRoom(roomId);
+    socket.join(roomId);
+    socketToRoom.set(socket.id, roomId);
 
-      // Simple plant cost (would be in a config file in production)
-      const PLANT_COSTS: Record<string, number> = {
-        peashooter: 100,
-        sunflower: 50
-      };
-
-      const cost = PLANT_COSTS[plant] || 100;
-
-      // Validate placement
-      if (playerSun < cost) {
-        callback({ success: false, message: 'Not enough sun' });
-        return;
-      }
-
-      // Check if tile is empty
-      const tileOccupied = playerBoard.some((p: any) => p.x === x && p.y === y);
-      if (tileOccupied) {
-        callback({ success: false, message: 'Tile occupied' });
-        return;
-      }
-
-      // Add plant to board
-      const plantData = {
-        id: uuidv4(),
-        type: plant,
-        x,
-        y,
-        health: 100,
-        createdAt: new Date().toISOString()
-      };
-
-      playerBoard.push(plantData);
-
-      // Deduct sun
-      if (isPlayerA) {
-        match.playerA_sun -= cost;
-      } else {
-        match.playerB_sun -= cost;
-      }
-
-      // Broadcast to both players
-      broadcastToMatch(matchId, 'plant_placed', {
-        playerId: socket.data.player.id,
-        plant,
-        x,
-        y,
-        playerName: socket.data.player.name
-      });
-
-      callback({ success: true, message: 'Plant placed' });
-      log('INFO', `Plant placed in match ${matchId}: ${plant} at (${x}, ${y})`);
-    } catch (error) {
-      log('ERROR', 'Error placing plant', error);
-      callback({ success: false, message: 'Error placing plant' });
+    const existingPlayer = room.players.find((player) => player.playerId === playerId);
+    if (!existingPlayer) {
+      room.players.push({ playerId, socketId: socket.id });
+      room.sun[playerId] = room.sun[playerId] ?? 50;
+    } else {
+      existingPlayer.socketId = socket.id;
     }
+
+    if (room.players.length === 2) {
+      emitRoomJoined(room);
+      broadcastState(room);
+    }
+
+    log('INFO', `Player joined room ${roomId}: ${playerId}`);
   });
 
-  // Player removes a plant
-  socket.on('remove_plant', (data: { matchId: string; plantId: string }, callback) => {
-    const { matchId, plantId } = data;
-    const match = matches.get(matchId);
+  socket.on('place_plant', (data: { roomId?: string; playerId?: string; x?: number; y?: number }) => {
+    const roomId = sanitizeId(data?.roomId);
+    const playerId = sanitizeId(data?.playerId);
+    const x = Number(data?.x);
+    const y = Number(data?.y);
 
-    if (!match) {
-      callback({ success: false, message: 'Match not found' });
+    const room = rooms.get(roomId);
+    if (!room || !Number.isFinite(x) || !Number.isFinite(y)) {
       return;
     }
 
-    try {
-      const isPlayerA = socket.data?.player?.id === match.playerA.id;
-      const playerBoard = isPlayerA ? match.playerA_board : match.playerB_board;
-
-      const plantIndex = playerBoard.findIndex((p: any) => p.id === plantId);
-      if (plantIndex === -1) {
-        callback({ success: false, message: 'Plant not found' });
-        return;
-      }
-
-      playerBoard.splice(plantIndex, 1);
-
-      broadcastToMatch(matchId, 'plant_removed', {
-        playerId: socket.data.player.id,
-        plantId
-      });
-
-      callback({ success: true, message: 'Plant removed' });
-    } catch (error) {
-      log('ERROR', 'Error removing plant', error);
-      callback({ success: false, message: 'Error removing plant' });
+    const result = placePlant(room, playerId, x, y);
+    if (!result.success) {
+      return;
     }
+
+    broadcastState(room);
+    log('INFO', `Plant placed in room ${roomId}: ${playerId} @ (${x}, ${y})`);
   });
 
-  // Player disconnects
   socket.on('disconnect', () => {
     log('INFO', `Player disconnected: ${socket.id}`);
 
-    const matchId = Array.from(playerToMatch.values()).find(
-      id => matches.get(id)?.playerA.socketId === socket.id || matches.get(id)?.playerB.socketId === socket.id
-    );
+    const roomId = socketToRoom.get(socket.id);
+    if (!roomId) {
+      return;
+    }
 
-    if (matchId) {
-      const match = matches.get(matchId);
-      if (match) {
-        // Notify opponent
-        const opponentSocketId = socket.id === match.playerA.socketId ? match.playerB.socketId : match.playerA.socketId;
-        io.to(opponentSocketId).emit('opponent_disconnected', {
-          matchId,
-          message: 'Opponent disconnected'
-        });
+    const room = rooms.get(roomId);
+    if (!room) {
+      socketToRoom.delete(socket.id);
+      return;
+    }
 
-        // Clean up match after 30 seconds
-        setTimeout(() => {
-          matches.delete(matchId);
-          playerToMatch.delete(match.playerA.id);
-          playerToMatch.delete(match.playerB.id);
-          log('INFO', `Match cleaned up: ${matchId}`);
-        }, 30000);
-      }
+    room.players = room.players.filter((player) => player.socketId !== socket.id);
+    socketToRoom.delete(socket.id);
+
+    if (room.players.length === 0) {
+      rooms.delete(roomId);
     }
   });
 });
 
-// Game loop (tick-based updates)
 setInterval(() => {
-  matches.forEach((match, matchId) => {
-    if (match.gameStatus !== 'PLAYING') return;
+  rooms.forEach((room) => advanceRoom(room));
+}, 1000 / TICK_RATE);
 
-    match.tick++;
-
-    // Simulate zombie movement (placeholder)
-    // In production, this would contain actual game logic
-
-    // Broadcast game state to both players
-    broadcastToMatch(matchId, 'game_tick', {
-      tick: match.tick,
-      wave: match.wave,
-      playerA_sun: match.playerA_sun,
-      playerB_sun: match.playerB_sun,
-      zombies: match.zombies,
-      timestamp: new Date().toISOString()
-    });
-
-    // Check win conditions (placeholder)
-    // In production, check if lawn is breached, all zombies dead, etc.
-  });
-}, 1000 / TICK_RATE); // 1000ms / TICK_RATE = interval
-
-// Error handling
 process.on('uncaughtException', (error) => {
   log('ERROR', 'Uncaught exception', error);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  log('ERROR', 'Unhandled rejection', { reason, promise });
+process.on('unhandledRejection', (reason) => {
+  log('ERROR', 'Unhandled rejection', reason);
 });
 
-// Start server
 httpServer.listen(PORT, () => {
   log('INFO', `Server is running on port ${PORT}`);
   log('INFO', `Tick rate: ${TICK_RATE} ticks/second`);
-  log('INFO', `Max concurrent matches: ${MAX_CONCURRENT_MATCHES}`);
   log('INFO', `Health check: http://localhost:${PORT}/api/health`);
 });
 

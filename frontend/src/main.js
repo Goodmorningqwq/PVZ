@@ -25,6 +25,10 @@ function getRoomIdFromUrl() {
   return new URLSearchParams(window.location.search).get('room') || '';
 }
 
+function getPlayerIdFromUrl() {
+  return new URLSearchParams(window.location.search).get('player') || '';
+}
+
 function isDemoModeEnabled() {
   const demoValue = new URLSearchParams(window.location.search).get('demo');
   return demoValue === '1' || demoValue === 'true';
@@ -32,7 +36,7 @@ function isDemoModeEnabled() {
 
 const roomId = getRoomIdFromUrl();
 const demoMode = isDemoModeEnabled();
-const playerId = getOrCreateSessionId();
+const playerId = getPlayerIdFromUrl() || getOrCreateSessionId();
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

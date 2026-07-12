@@ -1,92 +1,119 @@
-import { useEffect, useState } from 'react'
-import './App.css'
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Phaser from 'phaser';
+import { connect, disconnect, onGameOver, onRoomJoined } from './network';
+import LobbyScene from './scenes/LobbyScene';
+import GameScene from './scenes/GameScene/GameScene';
+import './App.css';
 
-export default function App() {
-  const [connected, setConnected] = useState(false)
-  const [socketStatus, setSocketStatus] = useState('Initializing...')
+function getSearchParam(name: string) {
+  return new URLSearchParams(window.location.search).get(name) || '';
+}
 
-  useEffect(() => {
-    // Import Socket.io dynamically
-    const initSocket = async () => {
-      try {
-        const { io } = await import('socket.io-client')
+function getOrCreateSessionId() {
+  const storageKey = 'pvz-session-id';
 
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
-        console.log(`Connecting to backend: ${backendUrl}`)
-
-        const socket = io(backendUrl, {
-          reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          reconnectionAttempts: 5
-        })
-
-        socket.on('connect', () => {
-          console.log('✓ Connected to backend')
-          setConnected(true)
-          setSocketStatus('Connected')
-        })
-
-        socket.on('disconnect', () => {
-          console.log('✗ Disconnected from backend')
-          setConnected(false)
-          setSocketStatus('Disconnected')
-        })
-
-        socket.on('error', (error) => {
-          console.error('Socket error:', error)
-          setSocketStatus(`Error: ${error}`)
-        })
-
-        return () => {
-          socket.disconnect()
-        }
-      } catch (error) {
-        console.error('Failed to initialize socket:', error)
-        setSocketStatus(`Error: ${error}`)
-      }
+  try {
+    const existingId = window.localStorage.getItem(storageKey);
+    if (existingId) {
+      return existingId;
     }
 
-    initSocket()
-  }, [])
+    const createdId = window.crypto?.randomUUID?.() || `session-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(storageKey, createdId);
+    return createdId;
+  } catch {
+    return window.crypto?.randomUUID?.() || `session-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+export default function App() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [socketStatus, setSocketStatus] = useState('Initializing...');
+
+  const roomId = useMemo(() => getSearchParam('room'), []);
+  const playerId = useMemo(() => getSearchParam('player') || getOrCreateSessionId(), []);
+  const demoMode = useMemo(() => {
+    const demoValue = getSearchParam('demo');
+    return demoValue === '1' || demoValue === 'true';
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) {
+      return;
+    }
+
+    const game = new Phaser.Game({
+      type: Phaser.AUTO,
+      parent: containerRef.current,
+      backgroundColor: '#18251a',
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      scene: [LobbyScene, GameScene],
+    });
+
+    game.registry.set('roomId', roomId);
+    game.registry.set('playerId', playerId);
+    game.registry.set('demoMode', demoMode);
+
+    if (demoMode) {
+      game.scene.start('GameScene');
+      setSocketStatus('Demo mode');
+    } else if (roomId) {
+      connect({ roomId, playerId });
+      setSocketStatus('Connecting...');
+    } else {
+      setSocketStatus('Waiting for room code');
+    }
+
+    const offRoomJoined = onRoomJoined((payload) => {
+      if (payload?.roomId) {
+        game.registry.set('roomId', String(payload.roomId));
+      }
+
+      if (payload?.playerId) {
+        game.registry.set('playerId', String(payload.playerId));
+      }
+
+      if (payload?.opponentId) {
+        game.registry.set('opponentId', String(payload.opponentId));
+      }
+
+      game.scene.stop('LobbyScene');
+      game.scene.start('GameScene');
+      setSocketStatus('Room joined');
+      setConnected(true);
+    });
+
+    const offGameOver = onGameOver((payload) => {
+      const gameScene = game.scene.getScene('GameScene');
+      if (gameScene?.scene?.isActive()) {
+        gameScene.showGameOver(payload);
+      }
+    });
+
+    return () => {
+      offRoomJoined();
+      offGameOver();
+      disconnect();
+      game.destroy(true);
+    };
+  }, [demoMode, playerId, roomId]);
 
   return (
-    <div className="app">
-      <div className="container">
-        <h1>🌱 Plants vs Zombies - Multiplayer</h1>
-
-        <div className="status">
-          <div className={`status-indicator ${connected ? 'connected' : 'disconnected'}`}>
-            {connected ? '🟢' : '🔴'}
-          </div>
-          <p>Backend Status: <strong>{socketStatus}</strong></p>
-        </div>
-
-        <div className="info">
-          <h2>Welcome!</h2>
-          <p>Backend is live and ready for the frontend to be built.</p>
-
-          <div className="links">
-            <a href="https://github.com/Goodmorningqwq/PVZ" target="_blank" rel="noopener noreferrer">
-              📖 View on GitHub
-            </a>
-            <a href="https://pvz-backend-otiq.onrender.com/api/health" target="_blank" rel="noopener noreferrer">
-              🔧 Backend Health Check
-            </a>
-          </div>
-        </div>
-
-        <div className="next-steps">
-          <h3>Next Steps (Week 1-2):</h3>
-          <ol>
-            <li>Build Phaser game scenes (MenuScene, GameScene)</li>
-            <li>Implement Socket.io event handlers</li>
-            <li>Create game board UI (8x5 grid)</li>
-            <li>Add plant placement mechanics</li>
-            <li>Render opponent actions in real-time</li>
-          </ol>
-        </div>
+    <div className="app-shell">
+      <div className="app-header">
+        <h1>Plants vs Zombies - Multiplayer</h1>
+        <p>
+          {demoMode ? 'Demo mode' : roomId ? `Room ${roomId}` : 'No room code in the URL'}
+          {' '}• Player {playerId}
+        </p>
+        <p>Status: {socketStatus} {connected ? '• connected' : '• disconnected'}</p>
       </div>
+      <div ref={containerRef} className="game-canvas" />
     </div>
-  )
+  );
 }
