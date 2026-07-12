@@ -19,12 +19,12 @@
     "@upstash/redis": "^1.25.0",
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
-    "uuid": "^9.0.0"
-  },
-  "devDependencies": {
+    "uuid": "^9.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.0",
-    "@types/uuid": "^9.0.7",
+    "@types/uuid": "^9.0.7"
+  },
+  "devDependencies": {
     "typescript": "^5.3.3",
     "tsx": "^4.7.0",
     "nodemon": "^3.0.2"
