@@ -1,6 +1,7 @@
 import readline from 'node:readline';
-import { forceGameOver, spawnZombieInLane } from '../game/commonGameEngine';
-import { advanceNormalRoomTicks, setPlayerSun as setNormalPlayerSun } from '../game/normalGameEngine';
+import { forceGameOver, spawnZombieInLane } from '../game/defaultGameEngine';
+import { advanceTwoPlayerRoomTicks, setPlayerSun as setTwoPlayerPlayerSun } from '../game/twoPlayerGameEngine';
+import { advanceOnePlayerRoomTicks, setPlayerSun as setOnePlayerPlayerSun } from '../game/onePlayerGameEngine';
 import { advanceDemoRoomTicks, setPlayerSun as setDemoPlayerSun } from '../game/demoGameEngine';
 import { getRoom, getRooms } from '../room/roomStore';
 
@@ -104,8 +105,10 @@ export function startAdminCli(context: AdminCliContext) {
           }
           if (room.mode === 'demo') {
             setDemoPlayerSun(room, playerId, amount);
+          } else if (room.mode === 'onePlayer') {
+            setOnePlayerPlayerSun(room, playerId, amount);
           } else {
-            setNormalPlayerSun(room, playerId, amount);
+            setTwoPlayerPlayerSun(room, playerId, amount);
           }
           context.emitState(roomId);
           console.log(`Set sun for ${playerId} in ${roomId} to ${Math.floor(amount)}`);
@@ -134,8 +137,10 @@ export function startAdminCli(context: AdminCliContext) {
           }
           if (room.mode === 'demo') {
             advanceDemoRoomTicks(room, ticks);
+          } else if (room.mode === 'onePlayer') {
+            advanceOnePlayerRoomTicks(room, ticks);
           } else {
-            advanceNormalRoomTicks(room, ticks);
+            advanceTwoPlayerRoomTicks(room, ticks);
           }
           context.emitState(roomId);
           context.emitGameOver(roomId);

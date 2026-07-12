@@ -8,6 +8,7 @@ import { createRoomEvents } from './services/roomEvents';
 import { startGameLoop } from './services/gameLoop';
 import { startAdminCli } from './cli/adminCli';
 import { log } from './utils/logger';
+import { TICK_RATE } from './game/config/gameConfig';
 
 dotenv.config();
 
@@ -21,7 +22,6 @@ const io = new SocketIOServer(httpServer, {
 });
 
 const PORT = Number(process.env.PORT || 3000);
-const TICK_RATE = Number(process.env.TICK_RATE || 15);
 
 app.use(express.json());
 

@@ -4,7 +4,7 @@ import PROJECTILE_DEFS from './config/projectileDefs.json';
 export type PlantType = keyof typeof PLANT_DEFS;
 export type SlotProjectileType = keyof typeof PROJECTILE_DEFS;
 export type WaveStatus = 'pending' | 'spawning' | 'break' | 'complete';
-export type RoomMode = 'normal' | 'demo';
+export type RoomMode = 'twoPlayer' | 'onePlayer' | 'demo';
 
 export type PlayerState = {
   playerId: string;

@@ -1,5 +1,5 @@
 import { Server as SocketIOServer } from 'socket.io';
-import { broadcastState } from '../game/commonGameEngine';
+import { broadcastState } from '../game/defaultGameEngine';
 import { getRoom } from '../room/roomStore';
 
 export type RoomEvents = {

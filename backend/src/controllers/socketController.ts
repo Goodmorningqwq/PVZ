@@ -1,5 +1,6 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import * as normalGameEngine from '../game/normalGameEngine';
+import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine';
+import * as onePlayerGameEngine from '../game/onePlayerGameEngine';
 import * as demoGameEngine from '../game/demoGameEngine';
 import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore';
 import { PlantType } from '../game/types';
@@ -33,7 +34,7 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
         existingPlayer.socketId = socket.id;
       }
 
-      normalGameEngine.initializePlayerSun(room, playerId);
+      twoPlayerGameEngine.initializePlayerSun(room, playerId);
 
       if (hasTwoPlayers(roomId)) {
         roomEvents.emitRoomJoined(roomId, room.players[0].playerId);
@@ -42,6 +43,31 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       log('INFO', `Player joined room ${roomId}: ${playerId}`);
+    });
+
+    socket.on('join_one_player_room', (data: { playerId?: string }) => {
+      const playerId = sanitizeId(data?.playerId);
+      if (!playerId) {
+        return;
+      }
+
+      const roomId = `oneplayer-${socket.id}`;
+      const room = getOrCreateRoom(roomId, 'onePlayer');
+      setSocketRoomId(socket.id, roomId);
+      socket.join(roomId);
+
+      const existingPlayer = room.players.find((player) => player.playerId === playerId);
+      if (!existingPlayer) {
+        room.players.push({ playerId, socketId: socket.id });
+      } else {
+        existingPlayer.socketId = socket.id;
+      }
+
+      onePlayerGameEngine.initializePlayerSun(room, playerId);
+      roomEvents.emitRoomJoined(roomId, playerId);
+      roomEvents.emitState(roomId);
+
+      log('INFO', `Player joined one-player room ${roomId}: ${playerId}`);
     });
 
     socket.on('join_demo_room', (data: { playerId?: string }) => {
@@ -80,9 +106,14 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
         return;
       }
 
-      const result = room.mode === 'demo'
-        ? demoGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex)
-        : normalGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+      let result: { success: boolean; message?: string };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+      } else {
+        result = twoPlayerGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+      }
       if (!result.success) {
         return;
       }

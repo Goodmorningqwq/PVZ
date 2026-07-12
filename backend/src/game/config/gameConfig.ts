@@ -7,13 +7,14 @@ export const SLOT_MARGIN = 48;
 export const ZOMBIE_SPAWN_X = BOARD_WIDTH - 20;
 export const LAWN_BREACH_X = 0;
 
-export const TICK_RATE = Number(process.env.TICK_RATE || 15);
+export const TICK_RATE = Number(process.env.TICK_RATE || 20);
 export const STARTING_SUN = 150;
 export const PRE_GAME_DELAY_TICKS = 6 * TICK_RATE;
 export const WAVE_BREAK_TICKS = 8 * TICK_RATE;
 
 export const ZOMBIE_HP = 20;
 export const ZOMBIE_SPEED = 1;
+export const ZOMBIE_RADIUS = 16;
 export const ZOMBIE_CHOMP_DAMAGE = 20;
 export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
 

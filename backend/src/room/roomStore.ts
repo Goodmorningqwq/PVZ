@@ -29,7 +29,7 @@ function buildSlots(): SlotState[] {
   return slots;
 }
 
-export function getOrCreateRoom(roomId: string, mode: RoomMode = 'normal'): RoomState {
+export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer'): RoomState {
   const existingRoom = rooms.get(roomId);
   if (existingRoom) {
     return existingRoom;

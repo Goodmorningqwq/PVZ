@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig';
+import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig';
 import PROJECTILE_DEFS from './config/projectileDefs.json';
 import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types';
 
@@ -177,6 +177,55 @@ export function advanceCombat(room: RoomState) {
   }
 }
 
+// Returns the fraction t in [0,1] along the segment (startX,startY)->(endX,endY)
+// at which it first enters a circle of the given radius centered on
+// (targetX,targetY), or null if the segment never enters that circle. This
+// treats a tick's projectile movement as a swept line rather than a single
+// point, so a fast projectile can't tunnel through a target it crossed over
+// mid-tick.
+function sweptCircleHitFraction(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  targetX: number,
+  targetY: number,
+  radius: number,
+): number | null {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const fx = startX - targetX;
+  const fy = startY - targetY;
+
+  const a = dx * dx + dy * dy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - radius * radius;
+
+  // Already overlapping at the start of this tick's movement - that's the
+  // earliest possible collision, regardless of where the segment ends up.
+  if (c <= 0) {
+    return 0;
+  }
+
+  if (a === 0) {
+    return null;
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) {
+    return null;
+  }
+
+  const sqrtDiscriminant = Math.sqrt(discriminant);
+  const t1 = (-b - sqrtDiscriminant) / (2 * a);
+
+  if (t1 >= 0 && t1 <= 1) {
+    return t1;
+  }
+
+  return null;
+}
+
 export function advanceProjectiles(room: RoomState) {
   const nextProjectiles: SlotProjectileState[] = [];
 
@@ -188,27 +237,43 @@ export function advanceProjectiles(room: RoomState) {
 
     projectile.damage = projectileDef.damage;
     projectile.speed = projectileDef.speed;
-    projectile.x += projectileDef.speed;
+
+    const startX = projectile.x;
+    const startY = projectile.y;
+    const endX = startX + projectileDef.speed;
+    const endY = startY;
 
     let hitZombie: ZombieState | null = null;
+    let hitFraction = Infinity;
+
     for (const zombie of room.zombies) {
       if (zombie.laneIndex !== projectile.laneIndex) {
         continue;
       }
 
-      if (zombie.x < projectile.x) {
+      const combinedRadius = projectileDef.radius + ZOMBIE_RADIUS;
+      const fraction = sweptCircleHitFraction(startX, startY, endX, endY, zombie.x, zombie.y, combinedRadius);
+      if (fraction === null) {
         continue;
       }
 
-      if (!hitZombie || zombie.x < hitZombie.x) {
+      if (fraction < hitFraction) {
+        hitFraction = fraction;
         hitZombie = zombie;
       }
     }
 
-    if (hitZombie && projectile.x >= hitZombie.x) {
+    if (hitZombie) {
+      // Stop the projectile at the collision point and consume it - it can't
+      // pass through and hit anything else this tick.
+      projectile.x = startX + hitFraction * (endX - startX);
+      projectile.y = startY + hitFraction * (endY - startY);
       hitZombie.hp -= projectileDef.damage;
       continue;
     }
+
+    projectile.x = endX;
+    projectile.y = endY;
 
     if (projectile.x <= BOARD_WIDTH) {
       nextProjectiles.push(projectile);
@@ -219,7 +284,7 @@ export function advanceProjectiles(room: RoomState) {
   room.zombies = room.zombies.filter((zombie) => zombie.hp > 0);
 }
 
-function advanceZombiesNormally(room: RoomState) {
+export function advanceZombiesNormally(room: RoomState) {
   for (const zombie of room.zombies) {
     const laneSlots = room.slots.filter((slot) => slot.laneIndex === zombie.laneIndex);
     const blockingSlot = laneSlots.find((slot) => slot.plant && Math.abs(slot.x - zombie.x) < ZOMBIE_SPEED);
@@ -248,16 +313,6 @@ export function checkLawnBreach(room: RoomState) {
   if (room.zombies.some((zombie) => zombie.x <= LAWN_BREACH_X)) {
     endGame(room, 'lose');
   }
-}
-
-export function runCommonRoomTick(room: RoomState) {
-  room.tick += 1;
-  advanceWaveState(room);
-  advanceEconomy(room);
-  advanceCombat(room);
-  advanceProjectiles(room);
-  advanceZombiesNormally(room);
-  checkLawnBreach(room);
 }
 
 export function placePlant(room: RoomState, playerId: string, plantType: PlantType, slotIndex: number) {

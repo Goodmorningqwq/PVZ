@@ -10,7 +10,7 @@ import {
   forceGameOver,
   placePlant as placePlantCommon,
   spawnZombieInLane,
-} from './commonGameEngine';
+} from './defaultGameEngine';
 
 export { broadcastState, endGame, forceGameOver, spawnZombieInLane };
 
