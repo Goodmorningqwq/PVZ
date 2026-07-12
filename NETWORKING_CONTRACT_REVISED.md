@@ -181,7 +181,7 @@ No `matchId`, `finalWave`, or `duration` fields exist.
 // Zombies / waves
 {
   "ZOMBIE_HP": 20,
-  "ZOMBIE_SPEED_PX_PER_TICK": 2,
+  "ZOMBIE_SPEED_PX_PER_TICK": 1,
   "ZOMBIE_CHOMP_DAMAGE": 20,
   "ZOMBIE_CHOMP_INTERVAL_SECONDS": 1,
   "WAVES": [
@@ -190,17 +190,17 @@ No `matchId`, `finalWave`, or `duration` fields exist.
     { "count": 7, "spawnGapSeconds": 4 }
   ],
   "WAVE_BREAK_SECONDS": 8,
-  "PRE_GAME_DELAY_SECONDS": 3
+  "PRE_GAME_DELAY_SECONDS": 6
 }
 
 // Economy
 {
-  "STARTING_SUN": 50,
+  "STARTING_SUN": 150,
   "TICK_RATE": 15
 }
 ```
 
-These numbers are a first playable pass, not final balance — expect them to change as the game gets played and tuned.
+**Tuned July 12, 2026 after playtesting:** the original numbers (50 starting sun, zombie speed 2 px/tick, 3s pre-game delay) made wave 1 unwinnable — a peashooter (100 sun) was unaffordable with 50 starting sun and purses don't combine, and a sunflower's ~24s first payout roughly matched a zombie's ~26s board-crossing time, leaving no window to build any defense. Starting sun raised to 150 (affords an immediate peashooter), zombie speed halved (~52s crossing time), and the pre-game delay doubled to give more time to coordinate a first placement. Still a first pass, not final balance.
 
 ---
 

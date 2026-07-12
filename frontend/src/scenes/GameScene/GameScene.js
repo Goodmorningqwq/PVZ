@@ -161,7 +161,7 @@ export default class GameScene extends Phaser.Scene {
 
     return {
       tick: 1,
-      sun: { [playerId]: 50, [opponentId]: 50 },
+      sun: { [playerId]: 150, [opponentId]: 150 }, // matches backend STARTING_SUN
       slots,
       zombies: [{ id: 'z1', x: 700, y: 200, hp: 20 }],
       wave: 1,

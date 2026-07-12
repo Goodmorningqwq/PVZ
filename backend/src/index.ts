@@ -64,8 +64,13 @@ const PLANT_DEFS = {
 type PlantType = keyof typeof PLANT_DEFS;
 
 // --- Zombies / waves ------------------------------------------------------
+// Speed and starting sun were tuned down/up after playtesting showed wave 1
+// was unwinnable: a peashooter (100 sun) was unaffordable with 50 starting
+// sun (no combining between purses), and a sunflower's ~24s first payout
+// roughly matched the time a zombie took to cross the board, leaving no
+// window to build any defense before the wave arrived.
 const ZOMBIE_HP = 20;
-const ZOMBIE_SPEED = 2; // px/tick
+const ZOMBIE_SPEED = 1; // px/tick (was 2 — halved so a full crossing takes ~52s instead of ~26s)
 const ZOMBIE_CHOMP_DAMAGE = 20;
 const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE; // one chomp per second of contact
 
@@ -75,7 +80,8 @@ const WAVES = [
   { count: 7, spawnIntervalTicks: 4 * TICK_RATE },
 ];
 const WAVE_BREAK_TICKS = 8 * TICK_RATE;
-const PRE_GAME_DELAY_TICKS = 3 * TICK_RATE;
+const PRE_GAME_DELAY_TICKS = 6 * TICK_RATE; // was 3s — more time to place a first plant before zombies start moving
+const STARTING_SUN = 150; // was 50 — now enough for one player to afford a peashooter (100) immediately
 
 type WaveStatus = 'pending' | 'spawning' | 'break' | 'complete';
 
@@ -455,7 +461,7 @@ io.on('connection', (socket: Socket) => {
     const existingPlayer = room.players.find((player) => player.playerId === playerId);
     if (!existingPlayer) {
       room.players.push({ playerId, socketId: socket.id });
-      room.sun[playerId] = room.sun[playerId] ?? 50;
+      room.sun[playerId] = room.sun[playerId] ?? STARTING_SUN;
     } else {
       existingPlayer.socketId = socket.id;
     }
