@@ -4,6 +4,7 @@ import { connect, disconnect, onGameOver, onRoomJoined } from './network';
 import LobbyScene from './scenes/LobbyScene';
 import GameScene from './scenes/GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT } from './scenes/GameScene/constants';
+import RoomMenu from './RoomMenu';
 import './App.css';
 
 type HudState = {
@@ -42,18 +43,50 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [socketStatus, setSocketStatus] = useState('Initializing...');
   const [hud, setHud] = useState<HudState>(initialHud);
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  const roomId = useMemo(() => getSearchParam('room'), []);
   const playerId = useMemo(() => getSearchParam('player') || getOrCreateSessionId(), []);
   const demoMode = useMemo(() => {
     const demoValue = getSearchParam('demo');
     return demoValue === '1' || demoValue === 'true';
   }, []);
 
+  // roomId starts from the URL (so shared links still work) but is otherwise
+  // controlled by the room menu below, not required to be hand-typed into the URL.
+  const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
+  const hasActiveGame = demoMode || Boolean(activeRoomId);
+
+  function joinRoom(roomId: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', roomId);
+    window.history.replaceState({}, '', url.toString());
+    setActiveRoomId(roomId);
+  }
+
+  function playDemo() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('demo', '1');
+    window.history.replaceState({}, '', url.toString());
+    window.location.reload();
+  }
+
+  async function copyInviteLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard API can fail (permissions, insecure context) — fail silently,
+      // the room code is still visible for manual sharing.
+    }
+  }
+
   useEffect(() => {
-    if (!containerRef.current) {
+    if (!hasActiveGame || !containerRef.current) {
       return;
     }
+
+    const roomId = activeRoomId;
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -87,8 +120,6 @@ export default function App() {
     } else if (roomId) {
       connect({ roomId, playerId });
       setSocketStatus('Connecting...');
-    } else {
-      setSocketStatus('Waiting for room code');
     }
 
     const offRoomJoined = onRoomJoined((payload) => {
@@ -128,15 +159,24 @@ export default function App() {
       disconnect();
       game.destroy(true);
     };
-  }, [demoMode, playerId, roomId]);
+  }, [hasActiveGame, demoMode, playerId, activeRoomId]);
+
+  if (!hasActiveGame) {
+    return <RoomMenu onJoin={joinRoom} onPlayDemo={playDemo} />;
+  }
 
   return (
     <div className="app-shell">
       <div className="app-header">
         <h1>Plants vs Zombies - Multiplayer</h1>
         <p>
-          {demoMode ? 'Demo mode' : (hud.roomId || roomId) ? `Room ${hud.roomId || roomId}` : 'No room code in the URL'}
+          {demoMode ? 'Demo mode' : `Room ${hud.roomId || activeRoomId}`}
           {' '}• Player {hud.playerId || playerId}
+          {!demoMode && (
+            <button className="copy-link-button" type="button" onClick={copyInviteLink}>
+              {linkCopied ? 'Copied!' : 'Copy invite link'}
+            </button>
+          )}
         </p>
         <p>Status: {socketStatus} {connected ? '• connected' : '• disconnected'}</p>
       </div>
