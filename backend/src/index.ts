@@ -19,27 +19,38 @@ const PORT = Number(process.env.PORT || 3000);
 const TICK_RATE = Number(process.env.TICK_RATE || 15);
 
 // --- Board layout -----------------------------------------------------
-// Single shared lane, 8 fixed slots. Coordinates match the frontend's fixed
-// logical resolution (GAME_WIDTH=800, GAME_HEIGHT=400) — see
-// frontend/src/scenes/GameScene/constants.js. Either player may place into
-// any open slot (fully shared placement, per design discussion).
+// 5 lanes (rows), 8 fixed slots per lane — classic PvZ-style grid. Coordinates
+// match the frontend's fixed logical resolution (GAME_WIDTH=800,
+// GAME_HEIGHT=400) — see frontend/src/scenes/GameScene/constants.js. Either
+// player may place into any open slot in any lane (fully shared placement,
+// per design discussion — this didn't change when we went from 1 lane to 5).
 const BOARD_WIDTH = 800;
-const LANE_Y = 200;
-const SLOT_COUNT = 8;
+const BOARD_HEIGHT = 400;
+const LANE_COUNT = 5;
+const LANE_MARGIN = 40;
+const LANE_SPACING = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
+const SLOT_COUNT = 8; // per lane
 const SLOT_MARGIN = 48;
 const SLOT_SPACING = (BOARD_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
 const ZOMBIE_SPAWN_X = BOARD_WIDTH - 20;
 const LAWN_BREACH_X = 0;
 
+function getLaneY(laneIndex: number): number {
+  return Math.round(LANE_MARGIN + LANE_SPACING * laneIndex);
+}
+
 function buildSlots(): SlotState[] {
   const slots: SlotState[] = [];
-  for (let i = 0; i < SLOT_COUNT; i += 1) {
-    slots.push({
-      index: i,
-      x: Math.round(SLOT_MARGIN + SLOT_SPACING * (i + 0.5)),
-      y: LANE_Y,
-      plant: null,
-    });
+  for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
+    for (let col = 0; col < SLOT_COUNT; col += 1) {
+      slots.push({
+        index: laneIndex * SLOT_COUNT + col,
+        laneIndex,
+        x: Math.round(SLOT_MARGIN + SLOT_SPACING * (col + 0.5)),
+        y: getLaneY(laneIndex),
+        plant: null,
+      });
+    }
   }
   return slots;
 }
@@ -100,6 +111,7 @@ type SlotPlant = {
 
 type SlotState = {
   index: number;
+  laneIndex: number;
   x: number;
   y: number;
   plant: SlotPlant | null;
@@ -107,6 +119,7 @@ type SlotState = {
 
 type ZombieState = {
   id: string;
+  laneIndex: number;
   x: number;
   y: number;
   hp: number;
@@ -186,6 +199,7 @@ function emitRoomJoined(room: RoomState) {
 function serializeSlots(room: RoomState) {
   return room.slots.map((slot) => ({
     index: slot.index,
+    laneIndex: slot.laneIndex,
     x: slot.x,
     y: slot.y,
     plant: slot.plant
@@ -202,7 +216,13 @@ function broadcastState(room: RoomState) {
   io.to(room.roomId).emit('state_update', {
     tick: room.tick,
     slots: serializeSlots(room),
-    zombies: room.zombies.map((zombie) => ({ id: zombie.id, x: zombie.x, y: zombie.y, hp: zombie.hp })),
+    zombies: room.zombies.map((zombie) => ({
+      id: zombie.id,
+      laneIndex: zombie.laneIndex,
+      x: zombie.x,
+      y: zombie.y,
+      hp: zombie.hp,
+    })),
     sun: { ...room.sun },
     wave: room.waveIndex + 1, // 1-based for display; 0 while still pending
     waveStatus: room.waveStatus,
@@ -224,10 +244,12 @@ function endGame(room: RoomState, result: 'win' | 'lose') {
 }
 
 function spawnZombie(room: RoomState) {
+  const laneIndex = Math.floor(Math.random() * LANE_COUNT);
   room.zombies.push({
     id: `z-${uuidv4()}`,
+    laneIndex,
     x: ZOMBIE_SPAWN_X,
-    y: LANE_Y,
+    y: getLaneY(laneIndex),
     hp: ZOMBIE_HP,
     chompCooldown: 0,
   });
@@ -314,10 +336,13 @@ function advanceCombat(room: RoomState) {
       continue;
     }
 
-    // Nearest zombie at or ahead of this slot (single shared lane, so
-    // "ahead" just means a larger x — zombies walk from high x to low x).
+    // Nearest zombie at or ahead of this slot, in the same lane only —
+    // "ahead" just means a larger x, since zombies walk from high x to low x.
     let target: ZombieState | null = null;
     for (const zombie of room.zombies) {
+      if (zombie.laneIndex !== slot.laneIndex) {
+        continue;
+      }
       if (zombie.x < slot.x) {
         continue;
       }
@@ -339,7 +364,9 @@ function advanceCombat(room: RoomState) {
 
 function advanceZombies(room: RoomState) {
   for (const zombie of room.zombies) {
-    const blockingSlot = room.slots.find(
+    const laneSlots = room.slots.filter((slot) => slot.laneIndex === zombie.laneIndex);
+
+    const blockingSlot = laneSlots.find(
       (slot) => slot.plant && Math.abs(slot.x - zombie.x) < ZOMBIE_SPEED,
     );
 
@@ -361,7 +388,7 @@ function advanceZombies(room: RoomState) {
     const nextX = zombie.x - ZOMBIE_SPEED;
     // If a plant sits between the zombie's current and next position, stop
     // at that slot this tick instead of overshooting it.
-    const passedSlot = room.slots.find((slot) => slot.plant && slot.x <= zombie.x && slot.x > nextX);
+    const passedSlot = laneSlots.find((slot) => slot.plant && slot.x <= zombie.x && slot.x > nextX);
     zombie.x = passedSlot ? passedSlot.x : nextX;
   }
 }

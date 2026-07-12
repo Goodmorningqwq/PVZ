@@ -24,16 +24,16 @@
 
 ## Project Overview
 
-**Multiplayer Plants vs. Zombies** is a real-time, browser-based **co-op** tower defense game. This is a deliberate change from the original "two players compete on parallel lanes" design: after discussion, the game is now two players defending **one shared lane and lawn together** against escalating zombie waves, with a shared sunflower economy. There's no PvP element — the only opponent is the zombies.
+**Multiplayer Plants vs. Zombies** is a real-time, browser-based **co-op** tower defense game. This is a deliberate change from the original "two players compete on parallel lanes" design: after discussion, the game is now two players defending **one shared 5-lane lawn together** against escalating zombie waves, with a shared sunflower economy. There's no PvP element — the only opponent is the zombies.
 
 ### Game Mode
-- **Co-op defense**: two players share one lane of 8 fixed slots. Either player can place a plant into any open slot. Both win together if all waves are survived; both lose together if a zombie breaches the lawn.
+- **Co-op defense**: two players share a 5-lane, 8-slots-per-lane grid (40 slots total) — a classic PvZ-style board. Either player can place a plant into any open slot, in any lane. Both win together if all waves are survived; both lose together if a zombie breaches the lawn in any lane.
 
 ### Core Gameplay (Implemented)
 - ✅ Real-time synchronization (configurable tick rate, default 15/s)
 - ✅ Server-authoritative game logic (all combat/economy resolved server-side, client only renders)
-- ✅ Two plant types: Peashooter (100 sun, damage-over-cooldown) and Sunflower (50 sun, sun income)
-- ✅ 8 fixed placement slots in a single shared lane — either player can place into any open slot
+- ✅ Two plant types: Peashooter (100 sun, damage-over-cooldown, fires only within its own lane) and Sunflower (50 sun, sun income)
+- ✅ 5 lanes × 8 fixed placement slots (40 total) — either player can place into any open slot in any lane; zombies spawn into a random lane and only interact with that lane
 - ✅ Shop bar UI for selecting a plant before placing (replaces earlier "click anywhere always places peashooter" behavior)
 - ✅ Zombie wave scheduler — 3 configured waves with escalating zombie counts and shrinking spawn gaps
 - ✅ Zombies stop and "chomp" an occupied slot's plant instead of walking through it

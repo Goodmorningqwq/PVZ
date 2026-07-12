@@ -5,6 +5,7 @@ export const ZOMBIE_COLOR = 0x8a6242;
 // else in the app (menu, waiting room, shop bar) instead of reading as a
 // completely separate dark "game mode".
 export const LANE_COLOR = 0x7cb06a;
+export const LANE_COLOR_ALT = 0x6fa062; // alternating row shade for the 5-lane checkerboard
 export const GRASS_COLOR = 0x3a5c34;
 export const SLOT_MARKER_COLOR = 0xf2f5ee;
 
@@ -26,20 +27,30 @@ export const HP_LABEL_OFFSET = {
 export const PLANT_ASSET_KEYS = ['peashooter', 'sunflower', 'wallnut'];
 
 // --- Board layout (must match backend/src/index.ts) ------------------------
-export const LANE_Y = 200;
-export const SLOT_COUNT = 8;
+// 5 lanes (rows), 8 slots per lane (columns) — classic PvZ-style grid.
+export const LANE_COUNT = 5;
+export const LANE_MARGIN = 40;
+export const LANE_SPACING = (GAME_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
+export const SLOT_COUNT = 8; // per lane
 export const SLOT_MARGIN = 48;
 export const SLOT_SPACING = (GAME_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
-export const SLOT_RADIUS = 34; // click-hit radius around a slot center
+export const SLOT_RADIUS = 30; // click-hit radius around a slot center
+
+export function getLaneY(laneIndex) {
+  return Math.round(LANE_MARGIN + LANE_SPACING * laneIndex);
+}
 
 export function getSlotPositions() {
   const positions = [];
-  for (let i = 0; i < SLOT_COUNT; i += 1) {
-    positions.push({
-      index: i,
-      x: Math.round(SLOT_MARGIN + SLOT_SPACING * (i + 0.5)),
-      y: LANE_Y,
-    });
+  for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
+    for (let col = 0; col < SLOT_COUNT; col += 1) {
+      positions.push({
+        index: laneIndex * SLOT_COUNT + col,
+        laneIndex,
+        x: Math.round(SLOT_MARGIN + SLOT_SPACING * (col + 0.5)),
+        y: getLaneY(laneIndex),
+      });
+    }
   }
   return positions;
 }

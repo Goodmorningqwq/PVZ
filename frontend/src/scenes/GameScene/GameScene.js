@@ -1,6 +1,18 @@
 import Phaser from 'phaser';
 import { emitPlacePlant, getLatestState } from '../../network';
-import { GRASS_COLOR, LANE_COLOR, PLANT_ASSET_KEYS, SLOT_MARKER_COLOR, SLOT_RADIUS, getSlotPositions } from './constants';
+import {
+  GRASS_COLOR,
+  LANE_COLOR,
+  LANE_COLOR_ALT,
+  LANE_COUNT,
+  LANE_SPACING,
+  PLANT_ASSET_KEYS,
+  SLOT_MARGIN,
+  SLOT_MARKER_COLOR,
+  SLOT_RADIUS,
+  getLaneY,
+  getSlotPositions,
+} from './constants';
 import { PlantRenderer, ZombieRenderer } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
@@ -156,14 +168,24 @@ export default class GameScene extends Phaser.Scene {
     const opponentId = toStringId(this.registry.get('opponentId')) || 'demo-opponent';
 
     const slots = SLOT_POSITIONS.map((position) => ({ ...position, plant: null }));
-    slots[1].plant = { type: 'sunflower', hp: 100, ownerId: playerId };
-    slots[2].plant = { type: 'peashooter', hp: 100, ownerId: opponentId };
+    // Lane 0, col 1 / col 2; lane 2, col 1 — a couple of plants spread
+    // across different lanes so the demo shows the 5-lane grid at a glance.
+    const sunflowerSlot = slots.find((s) => s.laneIndex === 0 && s.index === 1);
+    const peashooterSlot = slots.find((s) => s.laneIndex === 0 && s.index === 2);
+    const secondPeashooterSlot = slots.find((s) => s.laneIndex === 2 && s.index === 2 + 2 * 8);
+    if (sunflowerSlot) sunflowerSlot.plant = { type: 'sunflower', hp: 100, ownerId: playerId };
+    if (peashooterSlot) peashooterSlot.plant = { type: 'peashooter', hp: 100, ownerId: opponentId };
+    if (secondPeashooterSlot) secondPeashooterSlot.plant = { type: 'peashooter', hp: 100, ownerId: playerId };
 
     return {
       tick: 1,
       sun: { [playerId]: 150, [opponentId]: 150 }, // matches backend STARTING_SUN
       slots,
-      zombies: [{ id: 'z1', x: 700, y: 200, hp: 20 }],
+      zombies: [
+        { id: 'z1', laneIndex: 0, x: 700, y: getLaneY(0), hp: 20 },
+        { id: 'z2', laneIndex: 2, x: 620, y: getLaneY(2), hp: 20 },
+        { id: 'z3', laneIndex: 4, x: 740, y: getLaneY(4), hp: 20 },
+      ],
       wave: 1,
       waveStatus: 'spawning',
       totalWaves: 3,
@@ -200,12 +222,20 @@ export default class GameScene extends Phaser.Scene {
 
   drawBackground() {
     const { width, height } = this.scale;
+    const laneWidth = Math.max(width - SLOT_MARGIN * 2, 0);
+
     this.background.clear();
     this.background.fillStyle(GRASS_COLOR, 1);
     this.background.fillRect(0, 0, width, height);
-    this.background.fillStyle(LANE_COLOR, 1);
-    this.background.fillRoundedRect(48, height * 0.5 - 70, Math.max(width - 96, 0), 140, 24);
-    this.background.fillStyle(0x6a9a5a, 1);
-    this.background.fillRect(48, height * 0.5 - 3, Math.max(width - 96, 0), 6);
+
+    // 5-row checkerboard lane grid, alternating shades so each zombie lane
+    // reads clearly (matches the classic PvZ board proportions).
+    for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
+      const laneY = getLaneY(laneIndex);
+      const rowTop = Math.max(0, laneY - LANE_SPACING / 2);
+      const rowBottom = Math.min(height, laneY + LANE_SPACING / 2);
+      this.background.fillStyle(laneIndex % 2 === 0 ? LANE_COLOR : LANE_COLOR_ALT, 1);
+      this.background.fillRect(SLOT_MARGIN, rowTop, laneWidth, Math.max(rowBottom - rowTop, 0));
+    }
   }
 }

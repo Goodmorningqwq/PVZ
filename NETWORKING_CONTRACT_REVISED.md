@@ -1,12 +1,14 @@
 # PvZ Multiplayer — Networking Contract (REVISED)
 
-**Reconciled July 12, 2026 (combat/wave update):** the game changed from a single
-freeform-placement peashooter sandbox to a slot-based co-op tower defense: one
-shared lane with 8 fixed slots, real peashooter/sunflower combat, a zombie wave
-scheduler, and a shared-income economy. This document reflects that system as
-implemented in `backend/src/index.ts` and consumed by `frontend/src/network.js`.
-Sections describing older, still-unbuilt design intent (reconnection, structured
-errors, persistence) are kept at the bottom so we don't lose that context.
+**Reconciled July 12, 2026 (combat/wave update, then 5-lane update same day):** the
+game changed from a single freeform-placement peashooter sandbox to a slot-based
+co-op tower defense: originally one shared lane with 8 fixed slots, now **5
+shared lanes with 8 fixed slots each (40 slots total)**, real peashooter/sunflower
+combat scoped per lane, a zombie wave scheduler that spawns into a random lane,
+and a shared-income economy. This document reflects that system as implemented
+in `backend/src/index.ts` and consumed by `frontend/src/network.js`. Sections
+describing older, still-unbuilt design intent (reconnection, structured errors,
+persistence) are kept at the bottom so we don't lose that context.
 
 This is the shared data contract between frontend and backend. Both must implement exactly this shape.
 
@@ -14,13 +16,13 @@ This is the shared data contract between frontend and backend. Both must impleme
 
 ## Game model (as implemented)
 
-One shared lane, one shared lawn, defended cooperatively by both players:
+5 shared lanes, one shared lawn, defended cooperatively by both players:
 
-- **8 fixed slots** along the lane (`backend/src/index.ts` `buildSlots()` / `frontend/src/scenes/GameScene/constants.js` `getSlotPositions()` — both must derive the same positions from the same `BOARD_WIDTH`/`SLOT_MARGIN`/`SLOT_COUNT`). Either player can place into any open slot — placement rights are fully shared, not split per player.
-- **Two plant types**: `peashooter` (100 sun, 100 HP, fires at the nearest zombie at or ahead of its slot every ~1.4s for 20 damage) and `sunflower` (50 sun, 100 HP, produces 25 sun every ~24s).
+- **5 lanes × 8 fixed slots (40 total)** — classic PvZ-style grid (`backend/src/index.ts` `buildSlots()` / `frontend/src/scenes/GameScene/constants.js` `getSlotPositions()` — both must derive the same positions from the same `BOARD_WIDTH`/`BOARD_HEIGHT`/`LANE_COUNT`/`SLOT_MARGIN`/`SLOT_COUNT`). Every slot and zombie carries a `laneIndex` (0-4). Either player can place into any open slot in **any lane** — placement rights are fully shared, not split per player and not split per lane.
+- **Two plant types**: `peashooter` (100 sun, 100 HP, fires at the nearest zombie *in the same lane* at or ahead of its slot every ~1.4s for 20 damage) and `sunflower` (50 sun, 100 HP, produces 25 sun every ~24s).
 - **Shared sun income**: each player has a separate purse for spending, but every sunflower proc adds to *both* purses regardless of who placed it. This is intentional — see project guide for the design reasoning.
-- **Zombie waves**: a shared schedule (`WAVES` in `backend/src/index.ts`) spawns increasing numbers of zombies with decreasing gaps between waves. A zombie that reaches an occupied slot stops and chomps that plant (20 dmg/sec) instead of continuing to advance.
-- **Win/loss is shared, not per-player**: surviving every configured wave means both players win; any zombie reaching x ≤ 0 means both players lose. There is no "opponent" to defeat — the only opponent is the zombies.
+- **Zombie waves**: a shared schedule (`WAVES` in `backend/src/index.ts`) spawns increasing numbers of zombies with decreasing gaps between waves; each zombie spawns into a uniformly random lane. A zombie only interacts with plants/zombies in its own lane — it stops at an occupied slot in its lane and chomps that plant (20 dmg/sec) instead of continuing to advance.
+- **Win/loss is shared, not per-player**: surviving every configured wave means both players win; any zombie in any lane reaching x ≤ 0 means both players lose. There is no "opponent" to defeat — the only opponent is the zombies.
 
 ---
 
@@ -50,9 +52,13 @@ Sent when the player has a plant selected in the shop bar and clicks an open slo
   "roomId": "abc123",
   "playerId": "session-a1b2c3",
   "plant": "peashooter",
-  "slotIndex": 3
+  "slotIndex": 19
 }
 ```
+
+`slotIndex` is a flat global index across all 40 slots, `laneIndex * 8 + col` (0-39) — not
+a per-lane column number. The client reads the target slot's own `index` field (from the
+latest `state_update`) and echoes it back verbatim, so it never has to compute this formula itself.
 
 There is no ack callback and no error event. If the player's own sun is insufficient
 or the slot is already occupied, the server silently drops the request — the client
@@ -91,7 +97,8 @@ Broadcast to both players on every server tick (currently `TICK_RATE=15`, config
   "tick": 482,
   "slots": [
     {
-      "index": 3,
+      "index": 19,
+      "laneIndex": 2,
       "x": 400,
       "y": 200,
       "plant": {
@@ -102,7 +109,7 @@ Broadcast to both players on every server tick (currently `TICK_RATE=15`, config
     }
   ],
   "zombies": [
-    { "id": "z-1", "x": 620, "y": 200, "hp": 20 }
+    { "id": "z-1", "laneIndex": 2, "x": 620, "y": 200, "hp": 20 }
   ],
   "sun": {
     "session-a1b2c3": 75,
@@ -114,12 +121,15 @@ Broadcast to both players on every server tick (currently `TICK_RATE=15`, config
 }
 ```
 
-`slots` is always the full 8-element array (empty ones have `plant: null`), so the
-frontend never has to track slot state itself beyond what's in the latest tick.
-`waveStatus` is one of `pending` (before wave 1 starts), `spawning` (zombies still
-being introduced or alive), `break` (between waves), or `complete` (all waves
-cleared). Cooldown/timer internals (`slot.plant.cooldown`, `sunTimer`,
-`zombie.chompCooldown`) are server-only and stripped before broadcast.
+`slots` is always the full 40-element array (5 lanes × 8 slots, empty ones have
+`plant: null`), so the frontend never has to track slot state itself beyond
+what's in the latest tick. Every slot and zombie carries `laneIndex` (0-4);
+combat, chomping, and blocking are all scoped to matching `laneIndex` only —
+a peashooter never fires across lanes. `waveStatus` is one of `pending` (before
+wave 1 starts), `spawning` (zombies still being introduced or alive), `break`
+(between waves), or `complete` (all waves cleared). Cooldown/timer internals
+(`slot.plant.cooldown`, `sunTimer`, `zombie.chompCooldown`) are server-only and
+stripped before broadcast.
 
 **Note:** Frontend renders this state directly. No client-side prediction of state changes — only visual smoothing/interpolation of positions (not yet implemented; zombies currently snap to position each tick).
 
@@ -167,10 +177,14 @@ No `matchId`, `finalWave`, or `duration` fields exist.
 {
   "BOARD_WIDTH": 800,
   "BOARD_HEIGHT": 400,   // frontend calls this GAME_HEIGHT
-  "LANE_Y": 200,
-  "SLOT_COUNT": 8,
+  "LANE_COUNT": 5,
+  "LANE_MARGIN": 40,     // first/last lane's y-offset from the top/bottom edge
+  "SLOT_COUNT": 8,       // per lane — 40 slots total
   "SLOT_MARGIN": 48,
 }
+// LANE_SPACING and per-lane y are derived, not sent over the wire:
+// LANE_SPACING = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1)
+// laneY(i) = LANE_MARGIN + LANE_SPACING * i
 
 // Plants
 {
