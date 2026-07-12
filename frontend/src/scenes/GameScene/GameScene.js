@@ -27,22 +27,11 @@ export default class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#18251a');
     this.background = this.add.graphics();
-    this.staticText = this.add.text(24, 20, '', {
-      color: '#eaf4db',
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: '18px',
-    });
-    this.hintText = this.add.text(24, 46, 'Click anywhere to request a peashooter placement.', {
-      color: '#a8b89e',
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: '14px',
-    });
 
     this.gameOverPanel = null;
     this.gameOverText = null;
 
     this.drawBackground();
-    this.scale.on('resize', this.drawBackground, this);
     this.input.on('pointerdown', this.handlePointerDown, this);
 
     if (this.demoMode) {
@@ -71,13 +60,13 @@ export default class GameScene extends Phaser.Scene {
 
     this.lastRenderedTick = normalizedState.tick;
 
-    const roomId = toStringId(this.registry.get('roomId'));
-    const playerId = toStringId(this.registry.get('playerId'));
     const sunEntries = Object.entries(normalizedState.sun || {});
-    const sunText = sunEntries.length > 0 ? sunEntries.map(([id, value]) => `${id}: ${value}`).join(' | ') : 'no sun data';
-    const modeLabel = this.demoMode ? 'Demo mode: local rendering only' : 'Live mode: server state';
+    const sunText = sunEntries.length > 0 ? sunEntries.map(([id, value]) => `${id}: ${value}`).join(' | ') : 'No sun data yet';
 
-    this.staticText.setText(`Tick: ${normalizedState.tick}\nRoom: ${roomId}\nPlayer: ${playerId}\nSun: ${sunText}\n${modeLabel}`);
+    // HUD text now lives in React (App.tsx), not drawn on the canvas, so it can
+    // be styled/positioned with real CSS instead of manual pixel offsets.
+    this.game.events.emit('hud-update', { tick: normalizedState.tick, sunText });
+
     this.syncSprites(
       this.activeTowers,
       normalizedState.towers,
