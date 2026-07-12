@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Peashooter">
+  <circle cx="64" cy="64" r="54" fill="#5aa84f" />
+  <circle cx="50" cy="52" r="10" fill="#d8f5cb" />
+  <circle cx="92" cy="54" r="16" fill="#3d7f38" />
+  <rect x="44" y="76" width="40" height="18" rx="8" fill="#4f9b49" />
+  <path d="M18 108c18-8 28-10 46-10s28 2 46 10" fill="none" stroke="#2f5f2c" stroke-width="10" stroke-linecap="round" />
+</svg>

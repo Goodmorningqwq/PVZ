@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Sunflower">
+  <circle cx="64" cy="64" r="18" fill="#8b5a2b" />
+  <g fill="#f2c94c">
+    <ellipse cx="64" cy="22" rx="12" ry="24" />
+    <ellipse cx="64" cy="106" rx="12" ry="24" />
+    <ellipse cx="22" cy="64" rx="24" ry="12" />
+    <ellipse cx="106" cy="64" rx="24" ry="12" />
+    <ellipse cx="34" cy="34" rx="12" ry="24" transform="rotate(-45 34 34)" />
+    <ellipse cx="94" cy="34" rx="12" ry="24" transform="rotate(45 94 34)" />
+    <ellipse cx="34" cy="94" rx="12" ry="24" transform="rotate(45 34 94)" />
+    <ellipse cx="94" cy="94" rx="12" ry="24" transform="rotate(-45 94 94)" />
+  </g>
+  <rect x="58" y="78" width="12" height="34" rx="6" fill="#4f9b49" />
+  <path d="M48 108c8-8 16-12 16-12s8 4 16 12" fill="none" stroke="#2f5f2c" stroke-width="8" stroke-linecap="round" />
+</svg>

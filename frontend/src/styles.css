@@ -1,0 +1,29 @@
+:root {
+  color: #f4f8ee;
+  background: #0f1710;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(96, 140, 88, 0.25), transparent 35%),
+    linear-gradient(180deg, #121d12 0%, #0c130d 100%);
+  overflow: hidden;
+}
+
+body {
+  min-width: 320px;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  display: block;
+}
