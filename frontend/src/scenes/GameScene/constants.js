@@ -1,5 +1,6 @@
 export const TOWER_COLOR = 0x3f8f4a;
 export const ZOMBIE_COLOR = 0x8a6242;
+export const PROJECTILE_COLOR = 0x4caf50;
 // Softer, warmer palette than the original near-black green — chosen to sit
 // visually closer to the white-card/purple-gradient theme used everywhere
 // else in the app (menu, waiting room, shop bar) instead of reading as a
@@ -18,6 +19,7 @@ export const GAME_HEIGHT = 400;
 
 export const PLANT_SPRITE_SIZE = 1;
 export const ZOMBIE_SPRITE_SIZE = 1;
+export const PROJECTILE_RADIUS = 8;
 
 export const HP_LABEL_OFFSET = {
   plant: { x: 0, y: -42 },

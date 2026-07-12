@@ -1,4 +1,4 @@
-import { HP_LABEL_OFFSET, PLANT_ASSET_KEYS, PLANT_SPRITE_SIZE, ZOMBIE_COLOR, ZOMBIE_SPRITE_SIZE } from './constants';
+import { HP_LABEL_OFFSET, PLANT_ASSET_KEYS, PLANT_SPRITE_SIZE, PROJECTILE_COLOR, PROJECTILE_RADIUS, ZOMBIE_COLOR, ZOMBIE_SPRITE_SIZE } from './constants';
 
 function getAssetKey(entityType, availableAssets) {
   const normalizedType = String(entityType ?? '').toLowerCase();
@@ -128,6 +128,34 @@ export class ZombieRenderer extends BaseRenderer {
     cachedSprite.sprite.setPosition(entity.x, entity.y);
     cachedSprite.sprite.setScale(size);
     this.updateHealthLabel(cachedSprite.sprite, entity.hp, entity.x, entity.y);
+    return cachedSprite.sprite;
+  }
+}
+
+export class ProjectileRenderer extends BaseRenderer {
+  constructor(scene, assetsPath = '') {
+    super(scene, { assetsPath });
+    this.defaultScale = 1;
+  }
+
+  renderProjectile(entity, size = this.defaultScale) {
+    const id = String(entity?.id ?? '');
+    if (!id) {
+      return null;
+    }
+
+    let cachedSprite = this.spriteCache.get(id);
+    if (!cachedSprite) {
+      const sprite = this.scene.add.circle(entity.x, entity.y, PROJECTILE_RADIUS, PROJECTILE_COLOR).setStrokeStyle(1, 0x2e7d32);
+      sprite.setScale(size);
+      sprite.setOrigin(0.5);
+
+      cachedSprite = { sprite };
+      this.spriteCache.set(id, cachedSprite);
+    }
+
+    cachedSprite.sprite.setPosition(entity.x, entity.y);
+    cachedSprite.sprite.setScale(size);
     return cachedSprite.sprite;
   }
 }

@@ -13,7 +13,7 @@ import {
   getLaneY,
   getSlotPositions,
 } from './constants';
-import { PlantRenderer, ZombieRenderer } from './rendering';
+import { PlantRenderer, ProjectileRenderer, ZombieRenderer } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
 const SLOT_POSITIONS = getSlotPositions();
@@ -22,7 +22,6 @@ export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
     this.lastRenderedTick = -1;
-    this.demoState = null;
     this.activePlants = new Map();
     this.activeZombies = new Map();
   }
@@ -35,8 +34,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.demoMode = Boolean(this.registry.get('demoMode'));
     this.plantRenderer = new PlantRenderer(this);
+    this.projectileRenderer = new ProjectileRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);
 
     this.cameras.main.setBackgroundColor('#2f4a2a');
@@ -46,15 +45,10 @@ export default class GameScene extends Phaser.Scene {
     this.drawBackground();
     this.drawSlotMarkers();
     this.input.on('pointerdown', this.handlePointerDown, this);
-
-    if (this.demoMode) {
-      this.demoState = this.createDemoState();
-      this.renderState(this.demoState);
-    }
   }
 
   update() {
-    const latestState = this.demoMode ? this.demoState : getLatestState();
+    const latestState = getLatestState();
 
     if (latestState.tick === this.lastRenderedTick) {
       return;
@@ -70,6 +64,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.lastRenderedTick = tick;
     this.latestSlots = slots;
+    const projectiles = Array.isArray(latestState?.projectiles) ? latestState.projectiles : [];
 
     this.game.events.emit('hud-update', {
       tick,
@@ -94,6 +89,12 @@ export default class GameScene extends Phaser.Scene {
       plantEntities,
       (entity) => this.plantRenderer.renderPlant(entity, 1),
       (id) => this.plantRenderer.cleanup(id),
+    );
+    this.syncSprites(
+      this.activeProjectiles || (this.activeProjectiles = new Map()),
+      projectiles,
+      (entity) => this.projectileRenderer.renderProjectile(entity, 1),
+      (id) => this.projectileRenderer.cleanup(id),
     );
     this.syncSprites(
       this.activeZombies,
@@ -139,11 +140,6 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.demoMode) {
-      this.addDemoPlant(slot.index, selectedPlant, this.registry.get('playerId') || 'demo-player');
-      return;
-    }
-
     const occupied = (this.latestSlots || []).some((s) => s.index === slot.index && s.plant);
     if (occupied) {
       return;
@@ -161,50 +157,6 @@ export default class GameScene extends Phaser.Scene {
       plant: selectedPlant,
       slotIndex: slot.index,
     });
-  }
-
-  createDemoState() {
-    const playerId = toStringId(this.registry.get('playerId')) || 'demo-player';
-    const opponentId = toStringId(this.registry.get('opponentId')) || 'demo-opponent';
-
-    const slots = SLOT_POSITIONS.map((position) => ({ ...position, plant: null }));
-    // Lane 0, col 1 / col 2; lane 2, col 1 — a couple of plants spread
-    // across different lanes so the demo shows the 5-lane grid at a glance.
-    const sunflowerSlot = slots.find((s) => s.laneIndex === 0 && s.index === 1);
-    const peashooterSlot = slots.find((s) => s.laneIndex === 0 && s.index === 2);
-    const secondPeashooterSlot = slots.find((s) => s.laneIndex === 2 && s.index === 2 + 2 * 8);
-    if (sunflowerSlot) sunflowerSlot.plant = { type: 'sunflower', hp: 100, ownerId: playerId };
-    if (peashooterSlot) peashooterSlot.plant = { type: 'peashooter', hp: 100, ownerId: opponentId };
-    if (secondPeashooterSlot) secondPeashooterSlot.plant = { type: 'peashooter', hp: 100, ownerId: playerId };
-
-    return {
-      tick: 1,
-      sun: { [playerId]: 150, [opponentId]: 150 }, // matches backend STARTING_SUN
-      slots,
-      zombies: [
-        { id: 'z1', laneIndex: 0, x: 700, y: getLaneY(0), hp: 20 },
-        { id: 'z2', laneIndex: 2, x: 620, y: getLaneY(2), hp: 20 },
-        { id: 'z3', laneIndex: 4, x: 740, y: getLaneY(4), hp: 20 },
-      ],
-      wave: 1,
-      waveStatus: 'spawning',
-      totalWaves: 3,
-    };
-  }
-
-  addDemoPlant(slotIndex, plantType, ownerId) {
-    if (!this.demoState) {
-      return;
-    }
-
-    const nextSlots = this.demoState.slots.map((slot) =>
-      slot.index === slotIndex && !slot.plant
-        ? { ...slot, plant: { type: plantType, hp: 100, ownerId } }
-        : slot,
-    );
-
-    this.demoState = { ...this.demoState, slots: nextSlots, tick: this.demoState.tick + 1 };
-    this.renderState(this.demoState);
   }
 
   drawSlotMarkers() {

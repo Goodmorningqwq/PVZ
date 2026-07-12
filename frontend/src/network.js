@@ -5,6 +5,7 @@ let socket = null;
 let latestState = {
   sun: {},
   slots: [],
+  projectiles: [],
   zombies: [],
   tick: 0,
   wave: 0,
@@ -46,6 +47,7 @@ function normalizeState(payload) {
   return {
     sun: normalizeSun(payload?.sun),
     slots: normalizeSlots(payload?.slots),
+    projectiles: normalizeProjectiles(payload?.projectiles),
     zombies: normalizeEntities(payload?.zombies),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
     wave: Number.isFinite(payload?.wave) ? payload.wave : 0,
@@ -104,6 +106,41 @@ function normalizeSlots(slots) {
     .filter((slot) => slot && Number.isInteger(slot.index) && Number.isFinite(slot.x) && Number.isFinite(slot.y));
 }
 
+function normalizeProjectiles(projectiles) {
+  if (!Array.isArray(projectiles)) {
+    return [];
+  }
+
+  return projectiles
+    .map((projectile) => {
+      if (!projectile || typeof projectile !== 'object') {
+        return null;
+      }
+
+      return {
+        ...projectile,
+        id: String(projectile.id ?? ''),
+        laneIndex: Number(projectile.laneIndex),
+        x: Number(projectile.x),
+        y: Number(projectile.y),
+        damage: Number(projectile.damage),
+        speed: Number(projectile.speed),
+        projectileType: String(projectile.projectileType ?? ''),
+        ownerId: String(projectile.ownerId ?? ''),
+      };
+    })
+    .filter((projectile) =>
+      projectile
+      && projectile.id
+      && Number.isInteger(projectile.laneIndex)
+      && Number.isFinite(projectile.x)
+      && Number.isFinite(projectile.y)
+      && Number.isFinite(projectile.damage)
+      && Number.isFinite(projectile.speed)
+      && projectile.projectileType,
+    );
+}
+
 function normalizeSun(sun) {
   if (!sun || typeof sun !== 'object') {
     return {};
@@ -151,6 +188,27 @@ export function connect({ roomId, playerId }) {
     roomId: normalizedRoomId,
     playerId: normalizedPlayerId,
   });
+  return activeSocket;
+}
+
+export function connectDemo({ playerId }) {
+  const activeSocket = createSocket();
+  const normalizedPlayerId = toStringId(playerId);
+
+  if (!normalizedPlayerId) {
+    return activeSocket;
+  }
+
+  activeSocket.once('connect', () => {
+    activeSocket.emit('join_demo_room', { playerId: normalizedPlayerId });
+  });
+
+  if (!activeSocket.connected) {
+    activeSocket.connect();
+    return activeSocket;
+  }
+
+  activeSocket.emit('join_demo_room', { playerId: normalizedPlayerId });
   return activeSocket;
 }
 

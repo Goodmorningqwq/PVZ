@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import { connect, disconnect, onGameOver, onRoomJoined } from './network';
+import { connect, connectDemo, disconnect, onGameOver, onRoomJoined } from './network';
 import GameScene from './scenes/GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT } from './scenes/GameScene/constants';
 import RoomMenu from './RoomMenu';
@@ -92,8 +92,7 @@ export default function App() {
   // controlled by the room menu below, not required to be hand-typed into the URL.
   const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
   const [phase, setPhase] = useState<Phase>(() => {
-    if (demoMode) return 'playing';
-    if (getSearchParam('room')) return 'waiting';
+    if (demoMode || getSearchParam('room')) return 'waiting';
     return 'menu';
   });
 
@@ -137,12 +136,16 @@ export default function App() {
   // rather than Phaser canvas text, so there's nothing to render until the
   // match actually starts.
   useEffect(() => {
-    if (demoMode || phase === 'menu' || !activeRoomId) {
+    if (phase === 'menu' || (!demoMode && !activeRoomId)) {
       return;
     }
 
     setSocketStatus('Connecting...');
-    connect({ roomId: activeRoomId, playerId });
+    if (demoMode) {
+      connectDemo({ playerId });
+    } else {
+      connect({ roomId: activeRoomId, playerId });
+    }
 
     const offRoomJoined = onRoomJoined((payload) => {
       const joinedRoomId = payload?.roomId ? String(payload.roomId) : activeRoomId;
@@ -170,7 +173,7 @@ export default function App() {
       return;
     }
 
-    const roomId = activeRoomId;
+    const roomId = hud.roomId || activeRoomId;
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -196,13 +199,8 @@ export default function App() {
     gameRef.current = game;
     game.registry.set('roomId', roomId);
     game.registry.set('playerId', playerId);
-    game.registry.set('demoMode', demoMode);
     game.registry.set('selectedPlant', selectedPlant);
     setHud((current) => ({ ...current, roomId, playerId, demoMode }));
-
-    if (demoMode) {
-      setSocketStatus('Demo mode');
-    }
 
     const offHudUpdate = (() => {
       const handler = (payload: {
@@ -245,7 +243,7 @@ export default function App() {
   }
 
   if (phase === 'waiting') {
-    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} />;
+    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} isDemo={demoMode} />;
   }
 
   const currentPlayerId = hud.playerId || playerId;

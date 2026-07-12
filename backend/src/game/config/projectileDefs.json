@@ -1,0 +1,9 @@
+{
+  "pea": {
+    "projectileType": "pea",
+    "damage": 20,
+    "speed": 50,
+    "radius": 8,
+    "color": "#4CAF50"
+  }
+}

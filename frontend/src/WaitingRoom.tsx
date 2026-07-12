@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 type WaitingRoomProps = {
   roomId: string;
   statusText: string;
+  isDemo?: boolean;
 };
 
-export default function WaitingRoom({ roomId, statusText }: WaitingRoomProps) {
+export default function WaitingRoom({ roomId, statusText, isDemo }: WaitingRoomProps) {
   const [copied, setCopied] = useState(false);
 
   async function copyInviteLink() {
@@ -22,14 +23,23 @@ export default function WaitingRoom({ roomId, statusText }: WaitingRoomProps) {
   return (
     <div className="menu-backdrop">
       <div className="menu-card">
-        <h1 className="menu-title">Waiting for opponent</h1>
-        <p className="menu-subtitle">Share this code to start</p>
+        {isDemo ? (
+          <>
+            <h1 className="menu-title">Loading demo...</h1>
+            <p className="menu-subtitle">Setting up your sandbox</p>
+          </>
+        ) : (
+          <>
+            <h1 className="menu-title">Waiting for opponent</h1>
+            <p className="menu-subtitle">Share this code to start</p>
 
-        <div className="waiting-code">{roomId}</div>
+            <div className="waiting-code">{roomId}</div>
 
-        <button className="menu-primary-button" type="button" onClick={copyInviteLink}>
-          {copied ? 'Link copied!' : 'Copy invite link'}
-        </button>
+            <button className="menu-primary-button" type="button" onClick={copyInviteLink}>
+              {copied ? 'Link copied!' : 'Copy invite link'}
+            </button>
+          </>
+        )}
 
         <div className="waiting-spinner" aria-hidden="true">
           <span />
