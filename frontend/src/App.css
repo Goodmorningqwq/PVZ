@@ -86,8 +86,8 @@
 
 .hud-hint {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  top: 12px;
+  right: 12px;
   padding: 8px 12px;
   background: rgba(10, 15, 8, 0.55);
   border-radius: 8px;
@@ -95,6 +95,84 @@
   font-family: system-ui, sans-serif;
   font-size: 12px;
   pointer-events: none;
+}
+
+.hud-line--wave {
+  color: #e8d9a0;
+  font-weight: 600;
+}
+
+/* Shop bar */
+
+.shop-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(10, 15, 8, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  z-index: 5;
+}
+
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.shop-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.shop-card--selected {
+  border-color: #4a8f52;
+  background: rgba(74, 143, 82, 0.25);
+}
+
+.shop-card--disabled,
+.shop-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.shop-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.shop-card-icon--peashooter {
+  background: #3f8f4a;
+}
+
+.shop-card-icon--sunflower {
+  background: #e0b73a;
+}
+
+.shop-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #eaf4db;
+  font-family: system-ui, sans-serif;
+}
+
+.shop-card-cost {
+  font-size: 10px;
+  color: #c6d9b8;
+  font-family: system-ui, sans-serif;
 }
 
 .copy-link-button {
@@ -313,6 +391,26 @@
   margin: 0;
   font-size: 13px;
   color: #a9b39e;
+}
+
+/* Game Over overlay — reuses .menu-backdrop / .menu-card but sits absolutely
+   over the game canvas instead of taking the full page. */
+
+.gameover-backdrop {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  background: rgba(10, 15, 8, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+}
+
+.gameover-title--win {
+  color: #2f6b3a;
+}
+
+.gameover-title--lose {
+  color: #8a3b2e;
 }
 
 @media (max-width: 600px) {

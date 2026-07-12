@@ -1,13 +1,26 @@
 # PvZ Multiplayer — Networking Contract (REVISED)
 
-**Reconciled July 12, 2026:** this document previously described a *planned* contract
-(`match_found`/`game_tick`/`plant_placed`) that was never actually implemented. The
-sections below now match what `backend/src/index.ts` and `frontend/src/network.js`
-actually send and receive today. Events described in the old draft that don't exist
-in code are listed at the bottom under "Not implemented" so we don't lose the design
-intent, but nothing should be built against them without updating the backend first.
+**Reconciled July 12, 2026 (combat/wave update):** the game changed from a single
+freeform-placement peashooter sandbox to a slot-based co-op tower defense: one
+shared lane with 8 fixed slots, real peashooter/sunflower combat, a zombie wave
+scheduler, and a shared-income economy. This document reflects that system as
+implemented in `backend/src/index.ts` and consumed by `frontend/src/network.js`.
+Sections describing older, still-unbuilt design intent (reconnection, structured
+errors, persistence) are kept at the bottom so we don't lose that context.
 
 This is the shared data contract between frontend and backend. Both must implement exactly this shape.
+
+---
+
+## Game model (as implemented)
+
+One shared lane, one shared lawn, defended cooperatively by both players:
+
+- **8 fixed slots** along the lane (`backend/src/index.ts` `buildSlots()` / `frontend/src/scenes/GameScene/constants.js` `getSlotPositions()` — both must derive the same positions from the same `BOARD_WIDTH`/`SLOT_MARGIN`/`SLOT_COUNT`). Either player can place into any open slot — placement rights are fully shared, not split per player.
+- **Two plant types**: `peashooter` (100 sun, 100 HP, fires at the nearest zombie at or ahead of its slot every ~1.4s for 20 damage) and `sunflower` (50 sun, 100 HP, produces 25 sun every ~24s).
+- **Shared sun income**: each player has a separate purse for spending, but every sunflower proc adds to *both* purses regardless of who placed it. This is intentional — see project guide for the design reasoning.
+- **Zombie waves**: a shared schedule (`WAVES` in `backend/src/index.ts`) spawns increasing numbers of zombies with decreasing gaps between waves. A zombie that reaches an occupied slot stops and chomps that plant (20 dmg/sec) instead of continuing to advance.
+- **Win/loss is shared, not per-player**: surviving every configured wave means both players win; any zombie reaching x ≤ 0 means both players lose. There is no "opponent" to defeat — the only opponent is the zombies.
 
 ---
 
@@ -30,21 +43,20 @@ both players are present.
 ---
 
 ### `place_plant`
-Sent when player clicks anywhere on the board. There is no plant-type field yet —
-every placement is hard-coded to `peashooter` (cost 100) server-side.
+Sent when the player has a plant selected in the shop bar and clicks an open slot.
 
 ```json
 {
   "roomId": "abc123",
   "playerId": "session-a1b2c3",
-  "x": 240,
-  "y": 180
+  "plant": "peashooter",
+  "slotIndex": 3
 }
 ```
 
-There is no ack callback and no error event. If sun is insufficient or the tile is
-occupied, the server silently drops the request — the client gets no feedback
-beyond nothing changing on the next `state_update`.
+There is no ack callback and no error event. If the player's own sun is insufficient
+or the slot is already occupied, the server silently drops the request — the client
+gets no feedback beyond nothing changing on the next `state_update`.
 
 ---
 
@@ -77,47 +89,58 @@ Broadcast to both players on every server tick (currently `TICK_RATE=15`, config
 ```json
 {
   "tick": 482,
-  "towers": [
+  "slots": [
     {
-      "id": "t-1",
-      "x": 240,
-      "y": 180,
-      "type": "peashooter",
-      "owner": "session-a1b2c3",
-      "hp": 100
+      "index": 3,
+      "x": 400,
+      "y": 200,
+      "plant": {
+        "type": "peashooter",
+        "hp": 100,
+        "ownerId": "session-a1b2c3"
+      }
     }
   ],
   "zombies": [
-    {
-      "id": "z-1",
-      "x": 620,
-      "y": 180,
-      "hp": 20
-    }
+    { "id": "z-1", "x": 620, "y": 200, "hp": 20 }
   ],
   "sun": {
     "session-a1b2c3": 75,
-    "session-d4e5f6": 50
-  }
+    "session-d4e5f6": 75
+  },
+  "wave": 2,
+  "waveStatus": "spawning",
+  "totalWaves": 3
 }
 ```
 
-Differences from the original design: plants and zombies are flat arrays (not
-keyed by player, not wrapped in a `plants` object), there is no `wave` field, no
-`timestamp` field, and no `type` field on zombies.
+`slots` is always the full 8-element array (empty ones have `plant: null`), so the
+frontend never has to track slot state itself beyond what's in the latest tick.
+`waveStatus` is one of `pending` (before wave 1 starts), `spawning` (zombies still
+being introduced or alive), `break` (between waves), or `complete` (all waves
+cleared). Cooldown/timer internals (`slot.plant.cooldown`, `sunTimer`,
+`zombie.chompCooldown`) are server-only and stripped before broadcast.
 
-**Note:** Frontend renders this state directly. No client-side prediction of state changes — only visual smoothing/interpolation of positions.
+**Note:** Frontend renders this state directly. No client-side prediction of state changes — only visual smoothing/interpolation of positions (not yet implemented; zombies currently snap to position each tick).
 
 ---
 
 ### `game_over`
-Sent once when a zombie's x-position reaches ≤ 0 (there's no real "lawn breach at a
-specific line" yet, no wave counter, and no match duration tracking).
+Sent once when either every wave is cleared (co-op win) or a zombie reaches x ≤ 0 (co-op loss). There's no per-player winner — both players see the same result.
 
 ```json
 {
-  "winnerId": "session-a1b2c3",
-  "reason": "opponent_lawn_breached"
+  "result": "win",
+  "reason": "all_waves_cleared"
+}
+```
+
+or
+
+```json
+{
+  "result": "lose",
+  "reason": "lawn_breached"
 }
 ```
 
@@ -137,85 +160,74 @@ No `matchId`, `finalWave`, or `duration` fields exist.
 
 ---
 
-## Constants (Shared)
+## Constants (Shared — must match between `backend/src/index.ts` and `frontend/src/scenes/GameScene/constants.js`)
 
-Both frontend and backend must agree on these values:
-
-### Plant Costs
 ```javascript
+// Board layout
 {
-  "peashooter": 100,
-  "sunflower": 50
+  "BOARD_WIDTH": 800,
+  "BOARD_HEIGHT": 400,   // frontend calls this GAME_HEIGHT
+  "LANE_Y": 200,
+  "SLOT_COUNT": 8,
+  "SLOT_MARGIN": 48,
+}
+
+// Plants
+{
+  "peashooter": { "cost": 100, "hp": 100, "damage": 20, "cooldownSeconds": 1.4 },
+  "sunflower":  { "cost": 50,  "hp": 100, "sunAmount": 25, "intervalSeconds": 24 }
+}
+
+// Zombies / waves
+{
+  "ZOMBIE_HP": 20,
+  "ZOMBIE_SPEED_PX_PER_TICK": 2,
+  "ZOMBIE_CHOMP_DAMAGE": 20,
+  "ZOMBIE_CHOMP_INTERVAL_SECONDS": 1,
+  "WAVES": [
+    { "count": 3, "spawnGapSeconds": 6 },
+    { "count": 5, "spawnGapSeconds": 5 },
+    { "count": 7, "spawnGapSeconds": 4 }
+  ],
+  "WAVE_BREAK_SECONDS": 8,
+  "PRE_GAME_DELAY_SECONDS": 3
+}
+
+// Economy
+{
+  "STARTING_SUN": 50,
+  "TICK_RATE": 15
 }
 ```
 
-### Plant Stats
-```javascript
-{
-  "peashooter": {
-    "cost": 100,
-    "health": 100,
-    "damage": 10,
-    "fireRate": 1.5, // shots per second
-    "range": 200
-  },
-  "sunflower": {
-    "cost": 50,
-    "health": 100,
-    "sunPerSecond": 2
-  }
-}
-```
-
-### Game Rules
-```javascript
-{
-  "TICK_RATE": 15,              // ticks per second
-  "INITIAL_SUN": 50,            // sun at game start
-  "SUN_PER_SECOND": 2,          // base sun generation
-  "MAX_LANE_WIDTH": 800,        // pixels
-  "ZOMBIE_SPEED": 1.5,          // pixels per second
-  "LAWN_BREACH_X": 40,          // x position where zombie wins
-  "GAME_WIDTH": 800,
-  "GAME_HEIGHT": 400
-}
-```
+These numbers are a first playable pass, not final balance — expect them to change as the game gets played and tuned.
 
 ---
 
 ## Rules Both Sides MUST Follow
 
 1. **Field names, casing, and nesting match exactly**
-   - ✅ `playerName`, not `player_name`
-   - ✅ `plantId`, not `plant_id`
-   - ✅ `matchId`, not `match_id`
+   - ✅ `slotIndex`, not `slot_index`
+   - ✅ `ownerId`, not `owner_id`
 
-2. **Every field is always present**, even when empty
-   - ✅ `"plants": { "playerA": [], "playerB": [] }` (not omitted if empty)
-   - ❌ Don't omit `"plantId"` if plant placement fails
+2. **`slots` is always the full fixed-length array**, even for empty slots (`plant: null`), not a sparse/partial list.
 
 3. **Server is the only writer of truth**
    - ✅ Frontend sends `place_plant` intent
-   - ❌ Frontend never assumes plant placed until it appears in next `game_tick`
-   - ✅ Frontend receives `game_tick` and renders that state exactly
+   - ❌ Frontend never assumes a plant is placed until it appears in the next `state_update`
+   - ✅ Frontend receives `state_update` and renders that state exactly
 
 4. **IDs are always strings**
-   - ✅ `"playerId": "player_9f8a2"`
+   - ✅ `"playerId": "session_9f8a2"`
    - ❌ Never `"playerId": 123`
 
 5. **Coordinates are always numbers** (pixels)
-   - ✅ `"x": 240, "y": 180`
+   - ✅ `"x": 240, "y": 200`
    - ❌ Never strings or percentages
 
-6. **Timestamps are ISO 8601 strings**
-   - ✅ `"2026-07-12T04:32:43.613Z"`
-   - ❌ Never milliseconds or other formats
-
-7. **No client-side prediction of game state**
-   - ✅ Frontend can optimistically show plant while waiting for server confirmation
-   - ✅ Frontend interpolates zombie movement between ticks for smooth animation
-   - ❌ Frontend never calculates zombie damage or collision detection
-   - ❌ Frontend never adds/removes plants except when server says so
+6. **No client-side prediction of game state**
+   - ❌ Frontend never calculates zombie damage, chomp damage, or sun income itself
+   - ❌ Frontend never adds/removes plants except when the server says so via `state_update`
 
 ---
 
@@ -223,7 +235,7 @@ Both frontend and backend must agree on these values:
 
 The pattern below was the design intent but nothing in `backend/src/index.ts` emits
 structured errors today. Invalid `place_plant` calls (insufficient sun, occupied
-tile) are just dropped with no signal to the client.
+slot) are just dropped with no signal to the client.
 
 ```json
 {
@@ -244,7 +256,8 @@ tile) are just dropped with no signal to the client.
 The flow below is the design intent, not current behavior. Today, disconnect
 immediately removes the player from `room.players`; if that empties the room, the
 room itself is deleted. There is no grace period and no `opponent_disconnected` /
-`connection_restored` messaging.
+`connection_restored` messaging. This matters more now than before the wave system
+existed — a mid-wave disconnect currently just ends the co-op session for whoever's left.
 
 1. Player 1 disconnects → Server holds match state for 30 seconds
 2. Server sends `opponent_disconnected` to Player 2
@@ -260,11 +273,14 @@ room itself is deleted. There is no grace period and no `opponent_disconnected` 
 1. Player A → Server: join_room { roomId: "room1", playerId: "session-a1b2c3" }
 2. Player B → Server: join_room { roomId: "room1", playerId: "session-d4e5f6" }
 3. Server → Both:     room_joined { roomId, playerId, opponentId }
-4. Server → Both:     state_update (tick 0, towers: [], zombies: [initial zombie])
-5. Player A → Server: place_plant { roomId, playerId: A, x: 240, y: 180 }
-6. Server → Both:     state_update (towers now includes A's peashooter, sun decreased for A)
-7. [Every tick, ~67ms at TICK_RATE=15] state_update (zombie x decreases by ZOMBIE_SPEED each tick)
-8. Zombie x <= 0      → game_over { winnerId, reason: "opponent_lawn_breached" }
+4. Server → Both:     state_update (tick 0, all 8 slots empty, no zombies, waveStatus: "pending")
+5. [3s pre-game delay] waveStatus becomes "spawning", wave 1 zombies begin spawning on schedule
+6. Player A → Server: place_plant { roomId, playerId: A, plant: "sunflower", slotIndex: 1 }
+7. Server → Both:     state_update (slot 1 now has A's sunflower, sun deducted from A only)
+8. [~24s later]       sunflower procs → both A and B's sun increase by 25
+9. [Every tick]        state_update (zombies advance, peashooters fire on cooldown, chomping resolves)
+10. All 3 waves cleared → game_over { result: "win", reason: "all_waves_cleared" }
+    — or a zombie reaches x=0 → game_over { result: "lose", reason: "lawn_breached" }
 ```
 
 ---
@@ -274,12 +290,12 @@ room itself is deleted. There is no grace period and no `opponent_disconnected` 
 | What | Originally Designed | Actually Implemented |
 |------|----------|---------|
 | Lobby signal | `match_found` with matchId/startTime | `room_joined` with roomId/playerId/opponentId |
-| State broadcast | `game_tick`, plants keyed by player, wave counter | `state_update`, flat `towers`/`zombies` arrays, no wave |
-| Plant placement feedback | `plant_placed` broadcast + ack callback | None — client infers from next `state_update` |
-| Plant types | peashooter + sunflower selectable | Hard-coded to peashooter only |
+| Placement model | Freeform pixel x/y | Fixed 8-slot lane, shared placement rights |
+| Plant types | peashooter + sunflower selectable | Both implemented, shop bar lets you pick |
+| Combat | Damage, waves, win/loss | Implemented: cooldown-fire, chomp-on-contact, wave scheduler, co-op win/lose |
+| Economy | Sun costs and generation | Implemented, with a twist: sunflower income is shared between both purses (not in any original doc — a design decision made mid-project) |
 | Error handling | Structured `action_rejected` / callback errors | Silent drop |
 | Reconnection | 30s grace period + `opponent_disconnected`/`connection_restored` | Immediate removal, no grace period, no messaging |
-| Zombies | Multiple per wave, `type` field, wave progression | One zombie per room, no waves, no type field |
 | Persistence | Supabase writes every 30s | Not implemented — `@supabase/supabase-js` and `@upstash/redis` are installed but unused |
 
 ---
@@ -288,34 +304,36 @@ room itself is deleted. There is no grace period and no `opponent_disconnected` 
 
 ### Backend
 - [x] Emit `room_joined` when 2 players join
-- [x] Validate `place_plant` before applying (sun check, tile-occupied check)
+- [x] Validate `place_plant` against own purse + slot occupancy
 - [x] Broadcast `state_update` at `TICK_RATE` (default 15/s)
-- [x] Emit `game_over` when a zombie reaches x <= 0
+- [x] Peashooter cooldown-based firing at nearest zombie ahead
+- [x] Zombie chomp-on-contact damage to occupied slots
+- [x] Shared sunflower income to both purses
+- [x] Wave scheduler with escalating zombie counts
+- [x] Co-op `game_over` (win on all waves cleared, lose on lawn breach)
 - [ ] Handle disconnect with 30-second grace period
 - [ ] Emit `plant_placed` / `action_rejected` for client feedback
-- [ ] Implement plant damage to zombies (zombies currently never take damage)
-- [ ] Implement zombie waves (currently one static zombie per room)
 - [ ] Wire up Supabase persistence (dependency installed, no code uses it)
-- [ ] Validate constants match frontend
 
 ### Frontend
 - [x] Parse `room_joined` → transition to GameScene
-- [x] Render towers from `state_update.towers`
+- [x] Render plants from `state_update.slots`
 - [x] Render zombies from `state_update.zombies`
-- [x] Render sun from `state_update.sun`
-- [x] Send `place_plant` on user click
+- [x] Render sun from `state_update.sun`, labeled You/teammate
+- [x] Shop bar for selecting plant type before placing
+- [x] Wave status banner in the HUD
 - [ ] Handle opponent-disconnect messaging (no such event exists yet)
 - [ ] Interpolate zombie positions between ticks (currently snaps to each tick)
-- [ ] Support plant type selection (UI + payload only ever sends peashooter)
+- [ ] Visible pea projectiles (combat is currently instant-hit, no projectile sprite)
 
 ---
 
 ## Next Steps
 
-1. Implement zombie waves and real plant → zombie combat (damage, death, scoring).
-2. Add the 30-second reconnect grace period and `opponent_disconnected` messaging.
-3. Either wire up the Supabase/Upstash persistence that's already installed as a
+1. Add the 30-second reconnect grace period and `opponent_disconnected` messaging — now more important than before since a disconnect mid-wave currently just strands the remaining player.
+2. Either wire up the Supabase/Upstash persistence that's already installed as a
    dependency, or remove it from `package.json` and drop the "persistence" claims
    from the project guide until it's built.
-4. Add plant-type selection in the UI and `place_plant` payload.
-5. Add structured error feedback so failed placements aren't silently dropped.
+3. Add structured error feedback so failed placements (insufficient sun, occupied slot) aren't silently dropped.
+4. Playtest and tune the numbers in the Constants section — current values are a first pass, not balanced.
+5. Consider visible pea projectiles and zombie movement interpolation as polish once the core loop is confirmed fun.

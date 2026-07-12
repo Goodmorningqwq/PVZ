@@ -1,9 +1,9 @@
 # Multiplayer Plants vs. Zombies - Complete Project Guide
 
-**Last Updated:** July 12, 2026 (reconciled against actual repo state)
-**Status:** Backend Live ✅ | Frontend In Progress 🟡 (LobbyScene, GameScene, rendering, and socket wiring already built — not "ready to build," core features like waves/damage/reconnect still missing)
+**Last Updated:** July 12, 2026 (combat/wave system implemented — game direction changed from competitive PvP to co-op)
+**Status:** Backend Live ✅ | Core gameplay loop implemented 🟢 (slots, combat, waves, shared economy) | Needs playtesting/tuning and reconnection handling
 **Repository:** https://github.com/Goodmorningqwq/PVZ
-**Live Frontend:** https://pvz-frontend.vercel.app/
+**Live Frontend:** https://pvz-frontend.vercel.app/ (not yet redeployed with the combat/wave update — needs commit + push)
 
 ---
 
@@ -24,26 +24,30 @@
 
 ## Project Overview
 
-**Multiplayer Plants vs. Zombies** is a real-time, browser-based multiplayer version of the classic tower defense game. Two players compete on parallel lanes against synchronized zombie waves.
+**Multiplayer Plants vs. Zombies** is a real-time, browser-based **co-op** tower defense game. This is a deliberate change from the original "two players compete on parallel lanes" design: after discussion, the game is now two players defending **one shared lane and lawn together** against escalating zombie waves, with a shared sunflower economy. There's no PvP element — the only opponent is the zombies.
 
-### Game Modes (MVP)
-- **PvP Mode**: Two players compete on parallel lanes with shared wave progression
+### Game Mode
+- **Co-op defense**: two players share one lane of 8 fixed slots. Either player can place a plant into any open slot. Both win together if all waves are survived; both lose together if a zombie breaches the lawn.
 
-### Core MVP Features
-- ✅ Real-time synchronization (15 ticks/second)
-- ✅ Server-authoritative game logic (all moves validated server-side)
-- ✅ One plant type (Peashooter) and one zombie type at launch
-- ✅ Room-code based session joining (share link to play)
-- ✅ Win/loss detection when lawn is breached
-- ✅ 30-second reconnection grace period for dropped connections
-- ✅ Persistent match history
+### Core Gameplay (Implemented)
+- ✅ Real-time synchronization (configurable tick rate, default 15/s)
+- ✅ Server-authoritative game logic (all combat/economy resolved server-side, client only renders)
+- ✅ Two plant types: Peashooter (100 sun, damage-over-cooldown) and Sunflower (50 sun, sun income)
+- ✅ 8 fixed placement slots in a single shared lane — either player can place into any open slot
+- ✅ Shop bar UI for selecting a plant before placing (replaces earlier "click anywhere always places peashooter" behavior)
+- ✅ Zombie wave scheduler — 3 configured waves with escalating zombie counts and shrinking spawn gaps
+- ✅ Zombies stop and "chomp" an occupied slot's plant instead of walking through it
+- ✅ Shared sun economy: separate purses per player, but sunflower income (25 sun/proc) goes to **both** purses
+- ✅ Co-op win/loss: survive all waves = both win; any lawn breach = both lose
+- ✅ Room-code based session joining via a Kahoot-style menu (create/join by code, no more hand-typed URLs)
 
-### Out of Scope (Post-MVP)
+### Not Yet Implemented
+- Reconnection handling (a disconnect mid-match currently just strands the remaining player — no grace period)
+- Structured error feedback (failed placements are silently dropped)
 - User accounts/login or persistent player profiles
-- Skill-based matchmaking
-- Co-op mode
-- Multiple plant/zombie types
-- Sun economy (advanced features)
+- Persistent match history (Supabase is provisioned but not wired in)
+- Additional plant/zombie types beyond peashooter/sunflower and the one zombie type
+- Visible pea projectiles (combat is currently instant-hit) and zombie movement interpolation
 
 ---
 
@@ -242,66 +246,13 @@ backend and the docs as aspirations but not code:
 
 ## Networking Contract
 
-The frontend and backend communicate via Socket.io events. Here's the contract both must follow:
-
-### Client → Server
-
-#### `join_room`
-Player enters a room to start/join a match.
-```json
-{
-  "roomId": "abc123",
-  "playerName": "Benny"
-}
-```
-
-#### `place_plant` (as implemented — no `plant` type field yet, always peashooter)
-```json
-{
-  "roomId": "abc123",
-  "playerId": "session-a1b2c3",
-  "x": 240,
-  "y": 180
-}
-```
-
-### Server → Client (as implemented)
-
-#### `room_joined`
-Both players are ready - game starts. (Original design called this `match_found`; it was never built that way.)
-```json
-{
-  "roomId": "abc123",
-  "playerId": "session-a1b2c3",
-  "opponentId": "session-d4e5f6"
-}
-```
-
-#### `state_update` (at `TICK_RATE`, default 15x/second)
-Current game state - **only source of render truth**. (Original design called this `game_tick` with plants keyed by player and a wave counter; the actual shape is flatter.)
-```json
-{
-  "tick": 482,
-  "towers": [
-    { "id": "t-1", "x": 240, "y": 180, "type": "peashooter", "owner": "session-a1b2c3", "hp": 100 }
-  ],
-  "zombies": [
-    { "id": "z-1", "x": 620, "y": 180, "hp": 20 }
-  ],
-  "sun": { "session-a1b2c3": 75, "session-d4e5f6": 50 }
-}
-```
-
-#### `game_over`
-Match ended - someone won (fires when any zombie's x reaches ≤ 0; no wave/duration tracking yet).
-```json
-{
-  "winnerId": "session-a1b2c3",
-  "reason": "opponent_lawn_breached"
-}
-```
-
-**`plant_placed`, `opponent_disconnected`, `connection_restored`, and `action_rejected` are documented design intent but not implemented — see NETWORKING_CONTRACT_REVISED.md for the full gap list.**
+The frontend and backend communicate via Socket.io events, including a slot-based
+`place_plant` (`{roomId, playerId, plant, slotIndex}`), a `state_update` broadcast
+with the full 8-slot array plus zombies/sun/wave info, and a co-op `game_over`
+(`{result: 'win'|'lose', reason}`). **Full event shapes, constants, and the
+design-intent-vs-implemented gap list live in `NETWORKING_CONTRACT_REVISED.md`
+— that file is the source of truth, this section intentionally doesn't duplicate
+it anymore to avoid the two documents drifting out of sync again.**
 
 ---
 
@@ -317,27 +268,28 @@ Match ended - someone won (fires when any zombie's x reaches ≤ 0; no wave/dura
 ### Phase 2: Frontend Scaffolding (DONE)
 - ✅ Frontend folder structure ready
 - ✅ TypeScript configs created
-- ✅ Phaser initialized (LobbyScene + GameScene)
+- ✅ Phaser initialized (GameScene; LobbyScene was removed and replaced with HTML menu/waiting screens)
 - ✅ Socket.io connection tested against live backend
 
 ### Phase 3: Game Rendering (DONE)
-- ✅ Lane/board rendering
-- ✅ Plant rendering (peashooter, sunflower, wall-nut sprites exist as assets)
+- ✅ Lane/board rendering with 8 fixed slot markers
+- ✅ Plant rendering (peashooter, sunflower sprites; wall-nut asset exists but unused — not in the current 2-plant scope)
 - ✅ Zombie rendering
-- ✅ Basic status text (tick, room, player, sun) — no dedicated sun-counter/opponent-info UI yet
+- ✅ HTML HUD (tick, wave status, per-player sun) and shop bar, not canvas-drawn text
 
 ### Phase 4: Real-time Sync (DONE)
 - ✅ Socket.io event handlers
 - ✅ State synchronization
-- ✅ Opponent action visibility (via `state_update`)
+- ✅ Shared-state visibility (via `state_update`)
 - ⏳ Smooth animations — zombies currently snap to position each tick, no interpolation
 
-### Phase 5: Game Logic (NOT STARTED)
-- ⏳ Collision detection
-- ⏳ Plant damage system
-- ⏳ Zombie waves/movement beyond a single zombie walking left
-- ⏳ Real win/loss conditions (currently just "any zombie hits x=0")
-- ✅ Plant placement validation (sun cost + tile occupancy)
+### Phase 5: Game Logic (DONE — first pass)
+- ✅ Peashooter cooldown-based combat against nearest zombie ahead
+- ✅ Zombie chomp-on-contact damage to plants
+- ✅ Wave scheduler (3 waves, escalating count and spawn rate)
+- ✅ Co-op win/loss conditions (survive all waves vs. lawn breach)
+- ✅ Plant placement validation (own-purse sun cost + slot occupancy)
+- ⏳ Numbers are a first pass, not balanced — needs playtesting
 
 ### Phase 6: Polish & Launch (NOT STARTED)
 - ⏳ Bug fixes

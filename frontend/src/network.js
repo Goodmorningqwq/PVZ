@@ -4,9 +4,12 @@ import { BACKEND_URL } from './config';
 let socket = null;
 let latestState = {
   sun: {},
-  towers: [],
+  slots: [],
   zombies: [],
   tick: 0,
+  wave: 0,
+  waveStatus: 'pending',
+  totalWaves: 0,
 };
 
 const roomJoinedListeners = new Set();
@@ -42,9 +45,12 @@ function createSocket() {
 function normalizeState(payload) {
   return {
     sun: normalizeSun(payload?.sun),
-    towers: normalizeEntities(payload?.towers),
+    slots: normalizeSlots(payload?.slots),
     zombies: normalizeEntities(payload?.zombies),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
+    wave: Number.isFinite(payload?.wave) ? payload.wave : 0,
+    waveStatus: typeof payload?.waveStatus === 'string' ? payload.waveStatus : 'pending',
+    totalWaves: Number.isFinite(payload?.totalWaves) ? payload.totalWaves : 0,
   };
 }
 
@@ -67,6 +73,35 @@ function normalizeEntities(entities) {
       };
     })
     .filter((entity) => entity && entity.id && Number.isFinite(entity.x) && Number.isFinite(entity.y));
+}
+
+function normalizeSlots(slots) {
+  if (!Array.isArray(slots)) {
+    return [];
+  }
+
+  return slots
+    .map((slot) => {
+      if (!slot || typeof slot !== 'object') {
+        return null;
+      }
+
+      const plant = slot.plant && typeof slot.plant === 'object'
+        ? {
+            type: String(slot.plant.type ?? ''),
+            hp: Number(slot.plant.hp),
+            ownerId: String(slot.plant.ownerId ?? ''),
+          }
+        : null;
+
+      return {
+        index: Number(slot.index),
+        x: Number(slot.x),
+        y: Number(slot.y),
+        plant,
+      };
+    })
+    .filter((slot) => slot && Number.isInteger(slot.index) && Number.isFinite(slot.x) && Number.isFinite(slot.y));
 }
 
 function normalizeSun(sun) {
@@ -119,25 +154,24 @@ export function connect({ roomId, playerId }) {
   return activeSocket;
 }
 
-export function emitPlacePlant({ roomId, playerId, x, y }) {
+export function emitPlacePlant({ roomId, playerId, plant, slotIndex }) {
   if (!socket) {
     return;
   }
 
   const normalizedRoomId = toStringId(roomId);
   const normalizedPlayerId = toStringId(playerId);
-  const normalizedX = toFiniteNumber(x);
-  const normalizedY = toFiniteNumber(y);
+  const normalizedSlotIndex = toFiniteNumber(slotIndex);
 
-  if (!normalizedRoomId || !normalizedPlayerId || normalizedX === null || normalizedY === null) {
+  if (!normalizedRoomId || !normalizedPlayerId || normalizedSlotIndex === null || !plant) {
     return;
   }
 
   socket.emit('place_plant', {
     roomId: normalizedRoomId,
     playerId: normalizedPlayerId,
-    x: normalizedX,
-    y: normalizedY,
+    plant,
+    slotIndex: normalizedSlotIndex,
   });
 }
 

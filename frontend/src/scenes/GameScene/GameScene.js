@@ -1,15 +1,17 @@
 import Phaser from 'phaser';
 import { emitPlacePlant, getLatestState } from '../../network';
-import { GRASS_COLOR, LANE_COLOR, PLANT_ASSET_KEYS } from './constants';
+import { GRASS_COLOR, LANE_COLOR, PLANT_ASSET_KEYS, SLOT_RADIUS, getSlotPositions } from './constants';
 import { PlantRenderer, ZombieRenderer } from './rendering';
-import { normalizeEntities, normalizeSun, toFiniteNumber, toStringId } from './utils';
+import { normalizeSun, toStringId } from './utils';
+
+const SLOT_POSITIONS = getSlotPositions();
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
     this.lastRenderedTick = -1;
     this.demoState = null;
-    this.activeTowers = new Map();
+    this.activePlants = new Map();
     this.activeZombies = new Map();
   }
 
@@ -27,11 +29,10 @@ export default class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#18251a');
     this.background = this.add.graphics();
-
-    this.gameOverPanel = null;
-    this.gameOverText = null;
+    this.slotMarkers = this.add.graphics();
 
     this.drawBackground();
+    this.drawSlotMarkers();
     this.input.on('pointerdown', this.handlePointerDown, this);
 
     if (this.demoMode) {
@@ -51,31 +52,40 @@ export default class GameScene extends Phaser.Scene {
   }
 
   renderState(latestState) {
-    const normalizedState = {
-      tick: Number.isFinite(latestState?.tick) ? latestState.tick : 0,
+    const slots = Array.isArray(latestState?.slots) ? latestState.slots : [];
+    const zombies = Array.isArray(latestState?.zombies) ? latestState.zombies : [];
+    const tick = Number.isFinite(latestState?.tick) ? latestState.tick : 0;
+
+    this.lastRenderedTick = tick;
+    this.latestSlots = slots;
+
+    this.game.events.emit('hud-update', {
+      tick,
       sun: normalizeSun(latestState?.sun),
-      towers: normalizeEntities(latestState?.towers),
-      zombies: normalizeEntities(latestState?.zombies),
-    };
+      wave: Number.isFinite(latestState?.wave) ? latestState.wave : 0,
+      waveStatus: latestState?.waveStatus || 'pending',
+      totalWaves: Number.isFinite(latestState?.totalWaves) ? latestState.totalWaves : 0,
+    });
 
-    this.lastRenderedTick = normalizedState.tick;
-
-    const sunEntries = Object.entries(normalizedState.sun || {});
-    const sunText = sunEntries.length > 0 ? sunEntries.map(([id, value]) => `${id}: ${value}`).join(' | ') : 'No sun data yet';
-
-    // HUD text now lives in React (App.tsx), not drawn on the canvas, so it can
-    // be styled/positioned with real CSS instead of manual pixel offsets.
-    this.game.events.emit('hud-update', { tick: normalizedState.tick, sunText });
+    const plantEntities = slots
+      .filter((slot) => slot.plant)
+      .map((slot) => ({
+        id: `slot-${slot.index}`,
+        x: slot.x,
+        y: slot.y,
+        type: slot.plant.type,
+        hp: slot.plant.hp,
+      }));
 
     this.syncSprites(
-      this.activeTowers,
-      normalizedState.towers,
+      this.activePlants,
+      plantEntities,
       (entity) => this.plantRenderer.renderPlant(entity, 1),
       (id) => this.plantRenderer.cleanup(id),
     );
     this.syncSprites(
       this.activeZombies,
-      normalizedState.zombies,
+      zombies,
       (entity) => this.zombieRenderer.renderZombie(entity, 1),
       (id) => this.zombieRenderer.cleanup(id),
     );
@@ -102,14 +112,33 @@ export default class GameScene extends Phaser.Scene {
   }
 
   handlePointerDown(pointer) {
-    const roomId = this.registry.get('roomId');
-    const playerId = this.registry.get('playerId');
-
-    if (this.demoMode) {
-      this.addDemoPlant(Math.round(pointer.worldX), Math.round(pointer.worldY), playerId || 'demo-player');
+    const selectedPlant = this.registry.get('selectedPlant');
+    if (!selectedPlant) {
       return;
     }
 
+    const slot = SLOT_POSITIONS.find((candidate) => {
+      const dx = candidate.x - pointer.worldX;
+      const dy = candidate.y - pointer.worldY;
+      return Math.sqrt(dx * dx + dy * dy) <= SLOT_RADIUS;
+    });
+
+    if (!slot) {
+      return;
+    }
+
+    if (this.demoMode) {
+      this.addDemoPlant(slot.index, selectedPlant, this.registry.get('playerId') || 'demo-player');
+      return;
+    }
+
+    const occupied = (this.latestSlots || []).some((s) => s.index === slot.index && s.plant);
+    if (occupied) {
+      return;
+    }
+
+    const roomId = this.registry.get('roomId');
+    const playerId = this.registry.get('playerId');
     if (!roomId || !playerId) {
       return;
     }
@@ -117,8 +146,8 @@ export default class GameScene extends Phaser.Scene {
     emitPlacePlant({
       roomId: toStringId(roomId),
       playerId: toStringId(playerId),
-      x: toFiniteNumber(pointer.worldX) ?? Math.round(pointer.worldX),
-      y: toFiniteNumber(pointer.worldY) ?? Math.round(pointer.worldY),
+      plant: selectedPlant,
+      slotIndex: slot.index,
     });
   }
 
@@ -126,61 +155,42 @@ export default class GameScene extends Phaser.Scene {
     const playerId = toStringId(this.registry.get('playerId')) || 'demo-player';
     const opponentId = toStringId(this.registry.get('opponentId')) || 'demo-opponent';
 
+    const slots = SLOT_POSITIONS.map((position) => ({ ...position, plant: null }));
+    slots[1].plant = { type: 'sunflower', hp: 100, ownerId: playerId };
+    slots[2].plant = { type: 'peashooter', hp: 100, ownerId: opponentId };
+
     return {
       tick: 1,
-      sun: {
-        [playerId]: 50,
-        [opponentId]: 50,
-      },
-      towers: [
-        { id: 't1', x: 220, y: 180, type: 'peashooter', owner: playerId, hp: 100 },
-        { id: 't2', x: 360, y: 180, type: 'sunflower', owner: opponentId, hp: 100 },
-      ],
-      zombies: [
-        { id: 'z1', x: 610, y: 180, hp: 20 },
-      ],
+      sun: { [playerId]: 50, [opponentId]: 50 },
+      slots,
+      zombies: [{ id: 'z1', x: 700, y: 200, hp: 20 }],
+      wave: 1,
+      waveStatus: 'spawning',
+      totalWaves: 3,
     };
   }
 
-  addDemoPlant(x, y, owner) {
+  addDemoPlant(slotIndex, plantType, ownerId) {
     if (!this.demoState) {
       return;
     }
 
-    const nextIndex = this.demoState.towers.length + 1;
-    this.demoState = {
-      ...this.demoState,
-      towers: [
-        ...this.demoState.towers,
-        {
-          id: `demo_t${nextIndex}`,
-          x,
-          y,
-          type: nextIndex % 3 === 0 ? 'wallnut' : 'peashooter',
-          owner,
-          hp: 100,
-        },
-      ],
-    };
+    const nextSlots = this.demoState.slots.map((slot) =>
+      slot.index === slotIndex && !slot.plant
+        ? { ...slot, plant: { type: plantType, hp: 100, ownerId } }
+        : slot,
+    );
 
+    this.demoState = { ...this.demoState, slots: nextSlots, tick: this.demoState.tick + 1 };
     this.renderState(this.demoState);
   }
 
-  showGameOver({ winnerId, reason }) {
-    if (this.gameOverPanel) {
-      return;
+  drawSlotMarkers() {
+    this.slotMarkers.clear();
+    this.slotMarkers.lineStyle(2, 0xaebf9d, 0.35);
+    for (const slot of SLOT_POSITIONS) {
+      this.slotMarkers.strokeCircle(slot.x, slot.y, SLOT_RADIUS);
     }
-
-    const { width, height } = this.scale;
-    this.gameOverPanel = this.add.rectangle(width / 2, height / 2, 440, 180, 0x0f1710, 0.9).setStrokeStyle(2, 0xd8e8c8);
-    this.gameOverText = this.add
-      .text(width / 2, height / 2, `Game Over\nWinner: ${winnerId || 'unknown'}\nReason: ${reason || 'unknown'}`, {
-        align: 'center',
-        color: '#f2f7ea',
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '18px',
-      })
-      .setOrigin(0.5);
   }
 
   drawBackground() {
