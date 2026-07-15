@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Sun">
+  <defs>
+    <radialGradient id="sunCoreGradient2" cx="38%" cy="34%" r="70%">
+      <stop offset="0%" stop-color="#fffdf0" />
+      <stop offset="45%" stop-color="#ffe066" />
+      <stop offset="100%" stop-color="#ffb300" />
+    </radialGradient>
+  </defs>
+  <g transform="translate(64 64) rotate(0) scale(0.97 0.97) translate(-64 -64)">
+    <g fill="#ffca28">
+      <path d="M64 6 L74 34 L54 34 Z" />
+      <path d="M64 122 L74 94 L54 94 Z" />
+      <path d="M6 64 L34 74 L34 54 Z" />
+      <path d="M122 64 L94 74 L94 54 Z" />
+      <path d="M22 22 L42 46 L26 42 Z" />
+      <path d="M106 22 L86 46 L102 42 Z" />
+      <path d="M22 106 L42 82 L26 86 Z" />
+      <path d="M106 106 L86 82 L102 86 Z" />
+    </g>
+    <circle cx="64" cy="64" r="34" fill="url(#sunCoreGradient2)" stroke="#ffb300" stroke-width="3" />
+    <ellipse cx="52" cy="50" rx="10" ry="6" fill="#fffdf0" opacity="0.65" />
+  </g>
+</svg>

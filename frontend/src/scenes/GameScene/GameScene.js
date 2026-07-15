@@ -129,7 +129,7 @@ export default class GameScene extends Phaser.Scene {
     this.syncSprites(
       this.activeSunPickups,
       sunPickups,
-      (entity) => this.sunRenderer.renderSun(entity, 1),
+      (entity) => this.sunRenderer.renderSun(entity),
       (id) => this.sunRenderer.cleanup(id),
     );
   }

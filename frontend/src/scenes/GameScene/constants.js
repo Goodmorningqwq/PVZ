@@ -26,6 +26,9 @@ export const PROJECTILE_RADIUS = 8;
 // feedback and the server independently re-validates range on 'collect_sun').
 export const SUN_COLOR = 0xffd54f;
 export const SUN_PICKUP_RADIUS = 26;
+// The sun art (assets/sprites/sun/idle/frame-*.svg) is a 128x128 native SVG
+// like sunflower/wallnut — scaled down to roughly match SUN_PICKUP_RADIUS*2.
+export const SUN_SPRITE_SCALE = 0.42;
 
 // Per-plant scale multipliers applied on top of PLANT_SPRITE_SIZE. Plants not
 // listed here render at 1x. Source art isn't uniform: peashooter is a 20x19
