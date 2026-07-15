@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Server as SocketIOServer } from 'socket.io';
-import { getRoomCount } from '../room/roomStore';
+import { getRoomCount } from '../room/roomStore.js';
 
 export function createApiRouter(io: SocketIOServer, tickRate: number): Router {
   const router = Router();

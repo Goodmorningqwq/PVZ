@@ -2,13 +2,13 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
-import { createApiRouter } from './controllers/httpController';
-import { registerSocketHandlers } from './controllers/socketController';
-import { createRoomEvents } from './services/roomEvents';
-import { startGameLoop } from './services/gameLoop';
-import { startAdminCli } from './cli/adminCli';
-import { log } from './utils/logger';
-import { TICK_RATE } from './game/config/gameConfig';
+import { createApiRouter } from './controllers/httpController.js';
+import { registerSocketHandlers } from './controllers/socketController.js';
+import { createRoomEvents } from './services/roomEvents.js';
+import { startGameLoop } from './services/gameLoop.js';
+import { startAdminCli } from './cli/adminCli.js';
+import { log } from './utils/logger.js';
+import { TICK_RATE } from './game/config/gameConfig.js';
 
 dotenv.config();
 

@@ -98,6 +98,7 @@ function normalizeSlots(slots) {
 
       return {
         index: Number(slot.index),
+        laneIndex: Number(slot.laneIndex),
         x: Number(slot.x),
         y: Number(slot.y),
         plant,

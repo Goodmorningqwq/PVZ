@@ -1,4 +1,4 @@
-import { RoomState } from './types';
+import { RoomState } from './types.js';
 import {
   advanceCombat,
   advanceEconomy,
@@ -13,7 +13,7 @@ import {
   placePlant,
   setPlayerSun,
   spawnZombieInLane,
-} from './defaultGameEngine';
+} from './defaultGameEngine.js';
 
 export {
   broadcastState,

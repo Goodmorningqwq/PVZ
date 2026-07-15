@@ -1,8 +1,8 @@
-import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine';
-import * as onePlayerGameEngine from '../game/onePlayerGameEngine';
-import * as demoGameEngine from '../game/demoGameEngine';
-import { getRooms } from '../room/roomStore';
-import { RoomEvents } from './roomEvents';
+import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine.js';
+import * as onePlayerGameEngine from '../game/onePlayerGameEngine.js';
+import * as demoGameEngine from '../game/demoGameEngine.js';
+import { getRooms } from '../room/roomStore.js';
+import { RoomEvents } from './roomEvents.js';
 
 export function startGameLoop(tickRate: number, roomEvents: RoomEvents) {
   return setInterval(() => {

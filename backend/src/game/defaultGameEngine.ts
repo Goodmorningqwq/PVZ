@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig';
-import PROJECTILE_DEFS from './config/projectileDefs.json';
-import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types';
+import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
+import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
+import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types.js';
 
 export function roomLaneY(laneIndex: number): number {
   const laneMargin = 40;

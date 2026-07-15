@@ -1,9 +1,9 @@
 import readline from 'node:readline';
-import { forceGameOver, spawnZombieInLane } from '../game/defaultGameEngine';
-import { advanceTwoPlayerRoomTicks, setPlayerSun as setTwoPlayerPlayerSun } from '../game/twoPlayerGameEngine';
-import { advanceOnePlayerRoomTicks, setPlayerSun as setOnePlayerPlayerSun } from '../game/onePlayerGameEngine';
-import { advanceDemoRoomTicks, setPlayerSun as setDemoPlayerSun } from '../game/demoGameEngine';
-import { getRoom, getRooms } from '../room/roomStore';
+import { forceGameOver, spawnZombieInLane } from '../game/defaultGameEngine.js';
+import { advanceTwoPlayerRoomTicks, setPlayerSun as setTwoPlayerPlayerSun } from '../game/twoPlayerGameEngine.js';
+import { advanceOnePlayerRoomTicks, setPlayerSun as setOnePlayerPlayerSun } from '../game/onePlayerGameEngine.js';
+import { advanceDemoRoomTicks, setPlayerSun as setDemoPlayerSun } from '../game/demoGameEngine.js';
+import { getRoom, getRooms } from '../room/roomStore.js';
 
 type AdminCliContext = {
   emitState: (roomId: string) => void;

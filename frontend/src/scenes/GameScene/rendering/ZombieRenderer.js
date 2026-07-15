@@ -29,6 +29,9 @@ export class ZombieRenderer extends BaseRenderer {
         })
         .setOrigin(0.5);
 
+      // See PlantRenderer.js for why this must be attached directly to the
+      // sprite: BaseRenderer.updateHealthLabel() reads `sprite.hpLabel`.
+      sprite.hpLabel = hpLabel;
       cachedSprite = { sprite, hpLabel };
       this.spriteCache.set(id, cachedSprite);
     }

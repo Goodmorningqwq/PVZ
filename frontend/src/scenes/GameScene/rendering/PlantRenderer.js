@@ -57,6 +57,12 @@ export class PlantRenderer extends BaseRenderer {
         })
         .setOrigin(0.5);
 
+      // BaseRenderer.updateHealthLabel() reads `sprite.hpLabel`, so it must live
+      // on the sprite itself, not just as a sibling in this wrapper object —
+      // otherwise the label is created once and then never repositioned or
+      // updated again (it was previously passed `activeSprite.sprite`, which
+      // has no `hpLabel` property of its own).
+      sprite.hpLabel = hpLabel;
       activeSprite = { sprite, hpLabel, animationKey };
       this.spriteCache.set(id, activeSprite);
     }

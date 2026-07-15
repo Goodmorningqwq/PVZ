@@ -1,11 +1,11 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine';
-import * as onePlayerGameEngine from '../game/onePlayerGameEngine';
-import * as demoGameEngine from '../game/demoGameEngine';
-import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore';
-import { PlantType } from '../game/types';
-import { RoomEvents } from '../services/roomEvents';
-import { log } from '../utils/logger';
+import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine.js';
+import * as onePlayerGameEngine from '../game/onePlayerGameEngine.js';
+import * as demoGameEngine from '../game/demoGameEngine.js';
+import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore.js';
+import { PlantType } from '../game/types.js';
+import { RoomEvents } from '../services/roomEvents.js';
+import { log } from '../utils/logger.js';
 
 function sanitizeId(value: unknown): string {
   return String(value ?? '').trim();

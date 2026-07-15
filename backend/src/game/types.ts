@@ -1,5 +1,5 @@
-import { PLANT_DEFS } from './config/gameConfig';
-import PROJECTILE_DEFS from './config/projectileDefs.json';
+import { PLANT_DEFS } from './config/gameConfig.js';
+import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 
 export type PlantType = keyof typeof PLANT_DEFS;
 export type SlotProjectileType = keyof typeof PROJECTILE_DEFS;

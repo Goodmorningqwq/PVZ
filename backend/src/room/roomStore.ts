@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { PRE_GAME_DELAY_TICKS, SLOT_COUNT, SLOT_MARGIN, BOARD_HEIGHT, BOARD_WIDTH, LANE_COUNT, LANE_MARGIN } from '../game/config/gameConfig';
-import { RoomMode, RoomState, SlotState } from '../game/types';
+import { PRE_GAME_DELAY_TICKS, SLOT_COUNT, SLOT_MARGIN, BOARD_HEIGHT, BOARD_WIDTH, LANE_COUNT, LANE_MARGIN } from '../game/config/gameConfig.js';
+import { RoomMode, RoomState, SlotState } from '../game/types.js';
 
 const rooms = new Map<string, RoomState>();
 const socketToRoom = new Map<string, string>();

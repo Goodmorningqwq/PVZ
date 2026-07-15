@@ -1,4 +1,4 @@
-import { PlantType, RoomState } from './types';
+import { PlantType, RoomState } from './types.js';
 import {
   advanceCombat,
   advanceEconomy,
@@ -10,7 +10,7 @@ import {
   forceGameOver,
   placePlant as placePlantCommon,
   spawnZombieInLane,
-} from './defaultGameEngine';
+} from './defaultGameEngine.js';
 
 export { broadcastState, endGame, forceGameOver, spawnZombieInLane };
 
