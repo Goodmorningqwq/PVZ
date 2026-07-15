@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_LIFETIME_TICKS, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
+import { BOARD_HEIGHT, BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_LIFETIME_TICKS, SUN_PICKUP_OFFSET_X_JITTER, SUN_PICKUP_OFFSET_Y, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types.js';
 
@@ -150,15 +150,31 @@ export function advanceEconomy(room: RoomState) {
     if (slot.plant.sunTimer <= 0) {
       const def = PLANT_DEFS.sunflower;
       // A sunflower proc no longer credits purses directly — it drops a
-      // collectible sun on the board (at the sunflower's own slot) that
-      // either player collects by hovering/tapping it. Income is only
-      // awarded on collection (collectSunPickup below); an uncollected sun
-      // just despawns for nothing once advanceSunPickups() times it out.
+      // collectible sun on the board that either player collects by
+      // hovering/tapping it. Income is only awarded on collection
+      // (collectSunPickup below); an uncollected sun just despawns for
+      // nothing once advanceSunPickups() times it out.
+      //
+      // The landing spot is offset from the sunflower's own slot position
+      // (not dead-center on it) so the sun reads as a separate floating
+      // collectible instead of visually merging into the sunflower's art —
+      // clamped to stay on the board (this is also the collection hit-test
+      // point, so it must stay reachable).
+      const jitterX = (Math.random() * 2 - 1) * SUN_PICKUP_OFFSET_X_JITTER;
+      const landingX = Math.min(
+        BOARD_WIDTH - SUN_PICKUP_RADIUS,
+        Math.max(SUN_PICKUP_RADIUS, slot.x + jitterX),
+      );
+      const landingY = Math.min(
+        BOARD_HEIGHT - SUN_PICKUP_RADIUS,
+        Math.max(SUN_PICKUP_RADIUS, slot.y + SUN_PICKUP_OFFSET_Y),
+      );
+
       room.sunPickups.push({
         id: `sun-${uuidv4()}`,
         laneIndex: slot.laneIndex,
-        x: slot.x,
-        y: slot.y,
+        x: landingX,
+        y: landingY,
         amount: def.sunAmount,
         ticksRemaining: SUN_PICKUP_LIFETIME_TICKS,
       });

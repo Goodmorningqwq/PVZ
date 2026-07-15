@@ -27,6 +27,14 @@ export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
 // hover-based, not click-based, and easier to miss).
 export const SUN_PICKUP_RADIUS = 26; // hover-hit radius, client + server validation
 export const SUN_PICKUP_LIFETIME_TICKS = 20 * TICK_RATE;
+// The pickup's resting spot is offset from the sunflower's own slot position
+// (not dead-center on it) so it visually reads as a separate collectible
+// floating near the plant instead of sitting on top of/replacing the
+// sunflower's art. Offset upward (toward the top of the lane) with a little
+// horizontal jitter for variety, similar to how classic PvZ suns land beside
+// rather than directly on the sunflower.
+export const SUN_PICKUP_OFFSET_Y = -34;
+export const SUN_PICKUP_OFFSET_X_JITTER = 16; // +/- this, randomized per spawn
 
 export const WAVES = [
   { count: 3, spawnIntervalTicks: 6 * TICK_RATE },
