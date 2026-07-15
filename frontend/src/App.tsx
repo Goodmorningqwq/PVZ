@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import { connect, connectDemo, disconnect, onGameOver, onRoomJoined } from './network';
+import { connect, connectDemo, connectOnePlayer, disconnect, onGameOver, onRoomJoined } from './network';
 import GameScene from './scenes/GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT } from './scenes/GameScene/constants';
-import RoomMenu from './RoomMenu';
-import WaitingRoom from './WaitingRoom';
-import ShopBar from './ShopBar';
+import RoomMenu from './pages/RoomMenu/RoomMenu';
+import WaitingRoom from './pages/WaitingRoom/WaitingRoom';
+import ShopBar from './components/ShopBar/ShopBar';
 import './App.css';
 
 type HudState = {
@@ -14,6 +14,7 @@ type HudState = {
   playerId: string;
   sun: Record<string, number>;
   demoMode: boolean;
+  onePlayerMode: boolean;
   wave: number;
   waveStatus: string;
   totalWaves: number;
@@ -32,6 +33,7 @@ const initialHud: HudState = {
   playerId: '',
   sun: {},
   demoMode: false,
+  onePlayerMode: false,
   wave: 0,
   waveStatus: 'pending',
   totalWaves: 0,
@@ -87,12 +89,16 @@ export default function App() {
     const demoValue = getSearchParam('demo');
     return demoValue === '1' || demoValue === 'true';
   }, []);
+  const onePlayerMode = useMemo(() => {
+    const soloValue = getSearchParam('solo');
+    return soloValue === '1' || soloValue === 'true';
+  }, []);
 
   // roomId starts from the URL (so shared links still work) but is otherwise
   // controlled by the room menu below, not required to be hand-typed into the URL.
   const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
   const [phase, setPhase] = useState<Phase>(() => {
-    if (demoMode || getSearchParam('room')) return 'waiting';
+    if (demoMode || onePlayerMode || getSearchParam('room')) return 'waiting';
     return 'menu';
   });
 
@@ -107,6 +113,13 @@ export default function App() {
   function playDemo() {
     const url = new URL(window.location.href);
     url.searchParams.set('demo', '1');
+    window.history.replaceState({}, '', url.toString());
+    window.location.reload();
+  }
+
+  function playSolo() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('solo', '1');
     window.history.replaceState({}, '', url.toString());
     window.location.reload();
   }
@@ -136,13 +149,15 @@ export default function App() {
   // rather than Phaser canvas text, so there's nothing to render until the
   // match actually starts.
   useEffect(() => {
-    if (phase === 'menu' || (!demoMode && !activeRoomId)) {
+    if (phase === 'menu' || (!demoMode && !onePlayerMode && !activeRoomId)) {
       return;
     }
 
     setSocketStatus('Connecting...');
     if (demoMode) {
       connectDemo({ playerId });
+    } else if (onePlayerMode) {
+      connectOnePlayer({ playerId });
     } else {
       connect({ roomId: activeRoomId, playerId });
     }
@@ -164,7 +179,7 @@ export default function App() {
     // Deliberately depends on (phase === 'menu') rather than `phase` itself:
     // this effect should stay connected across the waiting -> playing
     // transition, not tear down and reconnect when the match starts.
-  }, [demoMode, phase === 'menu', activeRoomId, playerId]);
+  }, [demoMode, onePlayerMode, phase === 'menu', activeRoomId, playerId]);
 
   // Phaser only mounts once there's actually a game to render: immediately
   // for demo mode, or once the opponent has joined for a live match.
@@ -187,6 +202,12 @@ export default function App() {
       // while keeping game-logic coordinates at 800x400, so it looks sharp
       // without touching any entity/slot coordinate math.
       resolution: window.devicePixelRatio || 1,
+      // Plant sprite frames are pixel art scaled up (e.g. peashooter renders
+      // at 2x via PLANT_SCALE_MULTIPLIERS). `pixelArt: true` switches every
+      // texture to nearest-neighbor/point sampling instead of the default
+      // bilinear filtering, and rounds sprite positions to whole pixels, so
+      // the upscale stays crisp instead of going soft.
+      pixelArt: true,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -200,7 +221,7 @@ export default function App() {
     game.registry.set('roomId', roomId);
     game.registry.set('playerId', playerId);
     game.registry.set('selectedPlant', selectedPlant);
-    setHud((current) => ({ ...current, roomId, playerId, demoMode }));
+    setHud((current) => ({ ...current, roomId, playerId, demoMode, onePlayerMode }));
 
     const offHudUpdate = (() => {
       const handler = (payload: {
@@ -236,28 +257,29 @@ export default function App() {
       gameRef.current = null;
       game.destroy(true);
     };
-  }, [phase, demoMode, playerId, activeRoomId]);
+  }, [phase, demoMode, onePlayerMode, playerId, activeRoomId]);
 
   if (phase === 'menu') {
-    return <RoomMenu onJoin={joinRoom} onPlayDemo={playDemo} />;
+    return <RoomMenu onJoin={joinRoom} onPlayDemo={playDemo} onPlaySolo={playSolo} />;
   }
 
   if (phase === 'waiting') {
-    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} isDemo={demoMode} />;
+    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} isDemo={demoMode} isSolo={onePlayerMode} />;
   }
 
   const currentPlayerId = hud.playerId || playerId;
   const ownSun = hud.sun[currentPlayerId] ?? 0;
   const sunEntries = Object.entries(hud.sun);
+  const shareable = !demoMode && !onePlayerMode;
 
   return (
     <div className="app-shell">
       <div className="app-header">
         <h1>Plants vs Zombies - Multiplayer</h1>
         <p>
-          {demoMode ? 'Demo mode' : `Room ${hud.roomId || activeRoomId}`}
+          {demoMode ? 'Demo mode' : onePlayerMode ? 'Solo mode' : `Room ${hud.roomId || activeRoomId}`}
           {' '}• Player {shortId(currentPlayerId)}
-          {!demoMode && (
+          {shareable && (
             <button className="copy-link-button" type="button" onClick={copyInviteLink}>
               {linkCopied ? 'Copied!' : 'Copy invite link'}
             </button>
@@ -268,8 +290,8 @@ export default function App() {
       <div className="game-stage">
         <div ref={containerRef} className="game-canvas" />
         <div className="hud-overlay">
-          <span className={`mode-badge ${hud.demoMode ? 'mode-badge--demo' : 'mode-badge--live'}`}>
-            {hud.demoMode ? 'DEMO' : 'LIVE'}
+          <span className={`mode-badge ${hud.demoMode ? 'mode-badge--demo' : hud.onePlayerMode ? 'mode-badge--solo' : 'mode-badge--live'}`}>
+            {hud.demoMode ? 'DEMO' : hud.onePlayerMode ? 'SOLO' : 'LIVE'}
           </span>
           <span className="hud-line hud-line--wave">{waveStatusLabel(hud.waveStatus, hud.wave, hud.totalWaves)}</span>
           {sunEntries.length > 0 ? (

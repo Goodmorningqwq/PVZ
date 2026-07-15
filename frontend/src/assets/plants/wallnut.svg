@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Wallnut">
-  <ellipse cx="64" cy="64" rx="36" ry="44" fill="#c79a5c" stroke="#8c6239" stroke-width="6" />
-  <path d="M48 46c8 8 24 8 32 0" fill="none" stroke="#8c6239" stroke-width="4" stroke-linecap="round" />
-  <path d="M54 70c6 6 14 6 20 0" fill="none" stroke="#8c6239" stroke-width="4" stroke-linecap="round" />
-  <path d="M64 20v16" stroke="#2f5f2c" stroke-width="6" stroke-linecap="round" />
-</svg>

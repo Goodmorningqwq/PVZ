@@ -21,12 +21,16 @@ export const PLANT_SPRITE_SIZE = 1;
 export const ZOMBIE_SPRITE_SIZE = 1;
 export const PROJECTILE_RADIUS = 8;
 
+// Per-plant scale multipliers applied on top of PLANT_SPRITE_SIZE. Plants not
+// listed here render at 1x.
+export const PLANT_SCALE_MULTIPLIERS = {
+  peashooter: 2,
+};
+
 export const HP_LABEL_OFFSET = {
   plant: { x: 0, y: -42 },
   zombie: { x: 0, y: -40 },
 };
-
-export const PLANT_ASSET_KEYS = ['peashooter', 'sunflower', 'wallnut'];
 
 // --- Board layout (must match backend/src/index.ts) ------------------------
 // 5 lanes (rows), 8 slots per lane (columns) — classic PvZ-style grid.

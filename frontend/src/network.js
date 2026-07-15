@@ -212,6 +212,27 @@ export function connectDemo({ playerId }) {
   return activeSocket;
 }
 
+export function connectOnePlayer({ playerId }) {
+  const activeSocket = createSocket();
+  const normalizedPlayerId = toStringId(playerId);
+
+  if (!normalizedPlayerId) {
+    return activeSocket;
+  }
+
+  activeSocket.once('connect', () => {
+    activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId });
+  });
+
+  if (!activeSocket.connected) {
+    activeSocket.connect();
+    return activeSocket;
+  }
+
+  activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId });
+  return activeSocket;
+}
+
 export function emitPlacePlant({ roomId, playerId, plant, slotIndex }) {
   if (!socket) {
     return;

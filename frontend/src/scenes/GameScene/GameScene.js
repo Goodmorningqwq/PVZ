@@ -6,14 +6,13 @@ import {
   LANE_COLOR_ALT,
   LANE_COUNT,
   LANE_SPACING,
-  PLANT_ASSET_KEYS,
   SLOT_MARGIN,
   SLOT_MARKER_COLOR,
   SLOT_RADIUS,
   getLaneY,
   getSlotPositions,
 } from './constants';
-import { PlantRenderer, ProjectileRenderer, ZombieRenderer } from './rendering';
+import { PlantRenderer, ProjectileRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
 const SLOT_POSITIONS = getSlotPositions();
@@ -27,13 +26,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    for (const key of PLANT_ASSET_KEYS) {
-      const assetUrl = new URL(`../../assets/plants/${key}.svg`, import.meta.url).href;
-      this.load.svg(key, assetUrl, { width: 128, height: 128 });
-    }
+    preloadPlantAnimations(this);
   }
 
   create() {
+    createPlantAnimations(this);
+
     this.plantRenderer = new PlantRenderer(this);
     this.projectileRenderer = new ProjectileRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);

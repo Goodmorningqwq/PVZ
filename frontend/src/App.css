@@ -92,6 +92,11 @@
   color: #2f6b3a;
 }
 
+.mode-badge--solo {
+  background: #dbe8fb;
+  color: #274a86;
+}
+
 .hud-hint {
   position: absolute;
   top: 30px;
