@@ -21,10 +21,23 @@ export const PLANT_SPRITE_SIZE = 1;
 export const ZOMBIE_SPRITE_SIZE = 1;
 export const PROJECTILE_RADIUS = 8;
 
+// Collectible sun (see backend/src/game/config/gameConfig.ts SUN_PICKUP_RADIUS
+// — must match, since the hover/tap hit-test happens client-side for instant
+// feedback and the server independently re-validates range on 'collect_sun').
+export const SUN_COLOR = 0xffd54f;
+export const SUN_PICKUP_RADIUS = 26;
+
 // Per-plant scale multipliers applied on top of PLANT_SPRITE_SIZE. Plants not
-// listed here render at 1x.
+// listed here render at 1x. Source art isn't uniform: peashooter is a 20x19
+// pixel-art PNG (needs 2x just to read clearly), while sunflower/wallnut are
+// 128x128 SVGs — at the previous "no multiplier" 1x they rendered at their
+// full 128px native size, well over the board's ~88x80px per-slot grid cell,
+// so they visibly overlapped neighboring lanes/columns. 0.45 brings them down
+// to ~58x58px, comparable to the 40x38px peashooter and inside one grid cell.
 export const PLANT_SCALE_MULTIPLIERS = {
   peashooter: 2,
+  sunflower: 0.45,
+  wallnut: 0.45,
 };
 
 export const HP_LABEL_OFFSET = {

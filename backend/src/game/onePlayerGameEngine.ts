@@ -3,10 +3,12 @@ import {
   advanceCombat,
   advanceEconomy,
   advanceProjectiles,
+  advanceSunPickups,
   advanceWaveState,
   advanceZombiesNormally,
   broadcastState,
   checkLawnBreach,
+  collectSunPickup,
   endGame,
   forceGameOver,
   initializePlayerSun,
@@ -17,6 +19,7 @@ import {
 
 export {
   broadcastState,
+  collectSunPickup,
   endGame,
   forceGameOver,
   initializePlayerSun,
@@ -29,6 +32,7 @@ function runOnePlayerGameTick(room: RoomState) {
   room.tick += 1;
   advanceWaveState(room);
   advanceEconomy(room);
+  advanceSunPickups(room);
   advanceCombat(room);
   advanceProjectiles(room);
   advanceZombiesNormally(room);

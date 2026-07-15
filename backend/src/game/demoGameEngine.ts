@@ -3,9 +3,11 @@ import {
   advanceCombat,
   advanceEconomy,
   advanceProjectiles,
+  advanceSunPickups,
   advanceWaveState,
   broadcastState,
   checkLawnBreach,
+  collectSunPickup as collectSunPickupCommon,
   endGame,
   forceGameOver,
   placePlant as placePlantCommon,
@@ -20,6 +22,7 @@ function runDemoRoomTick(room: RoomState) {
   room.tick += 1;
   advanceWaveState(room);
   advanceEconomy(room);
+  advanceSunPickups(room);
   advanceCombat(room);
   advanceProjectiles(room);
   // Zombies stand still in the demo room, so there is no zombie-movement step here.
@@ -38,6 +41,16 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
   const result = placePlantCommon(room, playerId, plantType, slotIndex);
   if (result.success) {
     room.sun[playerId] = DEMO_SUN;
+  }
+  return result;
+}
+
+export function collectSunPickup(room: RoomState, playerId: string, sunId: string, playerX?: number, playerY?: number) {
+  const result = collectSunPickupCommon(room, playerId, sunId, playerX, playerY);
+  if (result.success) {
+    for (const player of room.players) {
+      room.sun[player.playerId] = DEMO_SUN;
+    }
   }
   return result;
 }

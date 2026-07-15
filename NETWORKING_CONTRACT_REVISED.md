@@ -19,8 +19,9 @@ This is the shared data contract between frontend and backend. Both must impleme
 5 shared lanes, one shared lawn, defended cooperatively by both players:
 
 - **5 lanes × 8 fixed slots (40 total)** — classic PvZ-style grid (`backend/src/index.ts` `buildSlots()` / `frontend/src/scenes/GameScene/constants.js` `getSlotPositions()` — both must derive the same positions from the same `BOARD_WIDTH`/`BOARD_HEIGHT`/`LANE_COUNT`/`SLOT_MARGIN`/`SLOT_COUNT`). Every slot and zombie carries a `laneIndex` (0-4). Either player can place into any open slot in **any lane** — placement rights are fully shared, not split per player and not split per lane.
-- **Two plant types**: `peashooter` (100 sun, 100 HP, fires at the nearest zombie *in the same lane* at or ahead of its slot every ~1.4s for 20 damage) and `sunflower` (50 sun, 100 HP, produces 25 sun every ~24s).
-- **Shared sun income**: each player has a separate purse for spending, but every sunflower proc adds to *both* purses regardless of who placed it. This is intentional — see project guide for the design reasoning.
+- **Two plant types**: `peashooter` (100 sun, 100 HP, fires at the nearest zombie *in the same lane* at or ahead of its slot every ~1.4s for 20 damage) and `sunflower` (50 sun, 100 HP, drops a collectible sun worth 25 every ~24s — see below).
+- **Sun is a physical pickup, not an auto-credit**: a sunflower proc no longer adds sun straight to purses. It spawns a `sunPickups` entry on the board (at the sunflower's own slot) that a player must hover their cursor over (or tap, on touch devices) to collect. An uncollected sun despawns after `SUN_PICKUP_LIFETIME_TICKS` (20s) with no income awarded.
+- **Shared sun income, unchanged**: each player has a separate purse for spending, but *collecting* a sun still adds to *both* purses regardless of who collected it — collection is just the new trigger mechanism, the underlying shared-economy design from earlier is untouched. See project guide for that reasoning.
 - **Zombie waves**: a shared schedule (`WAVES` in `backend/src/index.ts`) spawns increasing numbers of zombies with decreasing gaps between waves; each zombie spawns into a uniformly random lane. A zombie only interacts with plants/zombies in its own lane — it stops at an occupied slot in its lane and chomps that plant (20 dmg/sec) instead of continuing to advance.
 - **Win/loss is shared, not per-player**: surviving every configured wave means both players win; any zombie in any lane reaching x ≤ 0 means both players lose. There is no "opponent" to defeat — the only opponent is the zombies.
 
@@ -63,6 +64,29 @@ latest `state_update`) and echoes it back verbatim, so it never has to compute t
 There is no ack callback and no error event. If the player's own sun is insufficient
 or the slot is already occupied, the server silently drops the request — the client
 gets no feedback beyond nothing changing on the next `state_update`.
+
+---
+
+### `collect_sun`
+Sent when a player's cursor hovers over a sun pickup (fired continuously while hovering,
+guarded client-side to one request per pickup — see `GameScene.js` `requestedSunIds`), or
+on tap/click for touch devices where hover never fires at all.
+
+```json
+{
+  "roomId": "abc123",
+  "playerId": "session-a1b2c3",
+  "sunId": "sun-9f2e...",
+  "x": 400,
+  "y": 200
+}
+```
+
+`x`/`y` are optional — if provided, the server re-validates that they're within
+`SUN_PICKUP_RADIUS` of the pickup's actual position (defense in depth; the client already
+did this check itself before firing). No ack callback; if the sun no longer exists (already
+collected by the other player, or expired) the request is silently dropped, matching
+`place_plant`'s existing no-feedback-on-failure pattern.
 
 ---
 
@@ -110,6 +134,9 @@ Broadcast to both players on every server tick (currently `TICK_RATE=15`, config
   ],
   "zombies": [
     { "id": "z-1", "laneIndex": 2, "x": 620, "y": 200, "hp": 20 }
+  ],
+  "sunPickups": [
+    { "id": "sun-9f2e...", "laneIndex": 0, "x": 158, "y": 40, "amount": 25 }
   ],
   "sun": {
     "session-a1b2c3": 75,

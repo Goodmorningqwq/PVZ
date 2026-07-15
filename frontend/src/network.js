@@ -6,6 +6,7 @@ let latestState = {
   sun: {},
   slots: [],
   projectiles: [],
+  sunPickups: [],
   zombies: [],
   tick: 0,
   wave: 0,
@@ -48,6 +49,7 @@ function normalizeState(payload) {
     sun: normalizeSun(payload?.sun),
     slots: normalizeSlots(payload?.slots),
     projectiles: normalizeProjectiles(payload?.projectiles),
+    sunPickups: normalizeSunPickups(payload?.sunPickups),
     zombies: normalizeEntities(payload?.zombies),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
     wave: Number.isFinite(payload?.wave) ? payload.wave : 0,
@@ -139,6 +141,34 @@ function normalizeProjectiles(projectiles) {
       && Number.isFinite(projectile.damage)
       && Number.isFinite(projectile.speed)
       && projectile.projectileType,
+    );
+}
+
+function normalizeSunPickups(sunPickups) {
+  if (!Array.isArray(sunPickups)) {
+    return [];
+  }
+
+  return sunPickups
+    .map((pickup) => {
+      if (!pickup || typeof pickup !== 'object') {
+        return null;
+      }
+
+      return {
+        id: String(pickup.id ?? ''),
+        laneIndex: Number(pickup.laneIndex),
+        x: Number(pickup.x),
+        y: Number(pickup.y),
+        amount: Number(pickup.amount),
+      };
+    })
+    .filter((pickup) =>
+      pickup
+      && pickup.id
+      && Number.isFinite(pickup.x)
+      && Number.isFinite(pickup.y)
+      && Number.isFinite(pickup.amount),
     );
 }
 
@@ -252,6 +282,28 @@ export function emitPlacePlant({ roomId, playerId, plant, slotIndex }) {
     playerId: normalizedPlayerId,
     plant,
     slotIndex: normalizedSlotIndex,
+  });
+}
+
+export function emitCollectSun({ roomId, playerId, sunId, x, y }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+  const normalizedSunId = toStringId(sunId);
+
+  if (!normalizedRoomId || !normalizedPlayerId || !normalizedSunId) {
+    return;
+  }
+
+  socket.emit('collect_sun', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+    sunId: normalizedSunId,
+    x: toFiniteNumber(x),
+    y: toFiniteNumber(y),
   });
 }
 

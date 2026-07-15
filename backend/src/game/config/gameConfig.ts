@@ -18,6 +18,16 @@ export const ZOMBIE_RADIUS = 16;
 export const ZOMBIE_CHOMP_DAMAGE = 20;
 export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
 
+// Sun pickups: a sunflower proc no longer credits purses directly — it drops a
+// collectible sun on the board that a player collects by hovering their
+// cursor over it (see NETWORKING_CONTRACT_REVISED.md). Collecting still
+// credits both purses (shared economy, unchanged). An uncollected sun
+// despawns after SUN_PICKUP_LIFETIME_TICKS with no income awarded, mirroring
+// classic PvZ's ~10s sun timeout (tuned to 20s here since collection is
+// hover-based, not click-based, and easier to miss).
+export const SUN_PICKUP_RADIUS = 26; // hover-hit radius, client + server validation
+export const SUN_PICKUP_LIFETIME_TICKS = 20 * TICK_RATE;
+
 export const WAVES = [
   { count: 3, spawnIntervalTicks: 6 * TICK_RATE },
   { count: 5, spawnIntervalTicks: 5 * TICK_RATE },

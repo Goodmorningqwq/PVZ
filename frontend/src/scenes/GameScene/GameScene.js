@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { emitPlacePlant, getLatestState } from '../../network';
+import { emitCollectSun, emitPlacePlant, getLatestState } from '../../network';
 import {
   GRASS_COLOR,
   LANE_COLOR,
@@ -9,10 +9,11 @@ import {
   SLOT_MARGIN,
   SLOT_MARKER_COLOR,
   SLOT_RADIUS,
+  SUN_PICKUP_RADIUS,
   getLaneY,
   getSlotPositions,
 } from './constants';
-import { PlantRenderer, ProjectileRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
+import { PlantRenderer, ProjectileRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
 const SLOT_POSITIONS = getSlotPositions();
@@ -23,6 +24,14 @@ export default class GameScene extends Phaser.Scene {
     this.lastRenderedTick = -1;
     this.activePlants = new Map();
     this.activeZombies = new Map();
+    this.activeSunPickups = new Map();
+    this.latestSunPickups = [];
+    // Sun ids already sent to the server via collect_sun this "life" of the
+    // pickup — hover fires every update tick while the cursor rests over a
+    // sun, so without this guard we'd spam the socket dozens of times a
+    // second instead of once. Pruned in renderState() once the pickup is
+    // gone (collected or expired).
+    this.requestedSunIds = new Set();
   }
 
   preload() {
@@ -34,6 +43,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.plantRenderer = new PlantRenderer(this);
     this.projectileRenderer = new ProjectileRenderer(this);
+    this.sunRenderer = new SunRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);
 
     this.cameras.main.setBackgroundColor('#2f4a2a');
@@ -43,6 +53,9 @@ export default class GameScene extends Phaser.Scene {
     this.drawBackground();
     this.drawSlotMarkers();
     this.input.on('pointerdown', this.handlePointerDown, this);
+    // Hover collection (desktop/mouse). Tap collection for touch devices —
+    // which have no hover concept — is handled in handlePointerDown below.
+    this.input.on('pointermove', this.handlePointerMove, this);
   }
 
   update() {
@@ -63,6 +76,19 @@ export default class GameScene extends Phaser.Scene {
     this.lastRenderedTick = tick;
     this.latestSlots = slots;
     const projectiles = Array.isArray(latestState?.projectiles) ? latestState.projectiles : [];
+    const sunPickups = Array.isArray(latestState?.sunPickups) ? latestState.sunPickups : [];
+    this.latestSunPickups = sunPickups;
+
+    // Drop any "already requested" guard for suns that are no longer in the
+    // latest state (collected, expired, or — extremely unlikely — a ~stale
+    // request that never landed) so a future spawn can't get permanently
+    // stuck unrequestable.
+    const livePickupIds = new Set(sunPickups.map((pickup) => pickup.id));
+    for (const requestedId of this.requestedSunIds) {
+      if (!livePickupIds.has(requestedId)) {
+        this.requestedSunIds.delete(requestedId);
+      }
+    }
 
     this.game.events.emit('hud-update', {
       tick,
@@ -100,6 +126,12 @@ export default class GameScene extends Phaser.Scene {
       (entity) => this.zombieRenderer.renderZombie(entity, 1),
       (id) => this.zombieRenderer.cleanup(id),
     );
+    this.syncSprites(
+      this.activeSunPickups,
+      sunPickups,
+      (entity) => this.sunRenderer.renderSun(entity, 1),
+      (id) => this.sunRenderer.cleanup(id),
+    );
   }
 
   syncSprites(activeEntities, entities, renderEntity, cleanupEntity) {
@@ -122,7 +154,55 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Shared by hover (pointermove) and tap (pointerdown, for touch devices
+  // with no hover concept) — finds the nearest not-yet-requested sun pickup
+  // within range and fires collect_sun for it. Returns true if a sun was
+  // targeted, so callers (like handlePointerDown) can skip other tap
+  // behavior — e.g. don't also try to place a plant on the same tap.
+  tryCollectSunNear(worldX, worldY) {
+    const roomId = this.registry.get('roomId');
+    const playerId = this.registry.get('playerId');
+    if (!roomId || !playerId) {
+      return false;
+    }
+
+    const pickup = this.latestSunPickups.find((candidate) => {
+      if (this.requestedSunIds.has(candidate.id)) {
+        return false;
+      }
+      const dx = candidate.x - worldX;
+      const dy = candidate.y - worldY;
+      return Math.sqrt(dx * dx + dy * dy) <= SUN_PICKUP_RADIUS;
+    });
+
+    if (!pickup) {
+      return false;
+    }
+
+    this.requestedSunIds.add(pickup.id);
+    emitCollectSun({
+      roomId: toStringId(roomId),
+      playerId: toStringId(playerId),
+      sunId: pickup.id,
+      x: pickup.x,
+      y: pickup.y,
+    });
+    return true;
+  }
+
+  handlePointerMove(pointer) {
+    this.tryCollectSunNear(pointer.worldX, pointer.worldY);
+  }
+
   handlePointerDown(pointer) {
+    // Tap-to-collect for touch devices (no hover event ever fires there).
+    // On desktop this is usually a no-op since hover already requested the
+    // sun the moment the cursor entered range, but it's a harmless second
+    // check either way thanks to the requestedSunIds guard.
+    if (this.tryCollectSunNear(pointer.worldX, pointer.worldY)) {
+      return;
+    }
+
     const selectedPlant = this.registry.get('selectedPlant');
     if (!selectedPlant) {
       return;

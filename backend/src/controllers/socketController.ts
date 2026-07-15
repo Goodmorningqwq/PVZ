@@ -122,6 +122,40 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Plant placed in room ${roomId}: ${playerId} placed ${plantType} in slot ${slotIndex}`);
     });
 
+    // Fired by the frontend on both hover (desktop, continuous while the
+    // cursor rests over a sun) and tap/click (touch devices, single-shot) —
+    // the server doesn't distinguish between the two, it just validates the
+    // sun still exists and (if coordinates are provided) that the requester
+    // is actually in range, then credits both purses per the shared-economy
+    // design (see collectSunPickup in defaultGameEngine.ts).
+    socket.on('collect_sun', (data: { roomId?: string; playerId?: string; sunId?: string; x?: number; y?: number }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+      const sunId = sanitizeId(data?.sunId);
+      const x = Number(data?.x);
+      const y = Number(data?.y);
+
+      const room = getRoom(roomId);
+      if (!room || room.gameOver || !sunId) {
+        return;
+      }
+
+      let result: { success: boolean; message?: string };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.collectSunPickup(room, playerId, sunId, x, y);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.collectSunPickup(room, playerId, sunId, x, y);
+      } else {
+        result = twoPlayerGameEngine.collectSunPickup(room, playerId, sunId, x, y);
+      }
+      if (!result.success) {
+        return;
+      }
+
+      roomEvents.emitState(roomId);
+      log('INFO', `Sun collected in room ${roomId}: ${playerId} collected ${sunId}`);
+    });
+
     socket.on('disconnect', () => {
       log('INFO', `Player disconnected: ${socket.id}`);
 

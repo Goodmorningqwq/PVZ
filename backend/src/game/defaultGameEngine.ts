@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
+import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_LIFETIME_TICKS, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types.js';
 
@@ -49,6 +49,13 @@ export function broadcastState(room: RoomState) {
       x: zombie.x,
       y: zombie.y,
       hp: zombie.hp,
+    })),
+    sunPickups: room.sunPickups.map((pickup) => ({
+      id: pickup.id,
+      laneIndex: pickup.laneIndex,
+      x: pickup.x,
+      y: pickup.y,
+      amount: pickup.amount,
     })),
     sun: { ...room.sun },
     wave: room.waveIndex + 1,
@@ -142,12 +149,60 @@ export function advanceEconomy(room: RoomState) {
     slot.plant.sunTimer -= 1;
     if (slot.plant.sunTimer <= 0) {
       const def = PLANT_DEFS.sunflower;
-      for (const player of room.players) {
-        room.sun[player.playerId] = (room.sun[player.playerId] ?? 0) + def.sunAmount;
-      }
+      // A sunflower proc no longer credits purses directly — it drops a
+      // collectible sun on the board (at the sunflower's own slot) that
+      // either player collects by hovering/tapping it. Income is only
+      // awarded on collection (collectSunPickup below); an uncollected sun
+      // just despawns for nothing once advanceSunPickups() times it out.
+      room.sunPickups.push({
+        id: `sun-${uuidv4()}`,
+        laneIndex: slot.laneIndex,
+        x: slot.x,
+        y: slot.y,
+        amount: def.sunAmount,
+        ticksRemaining: SUN_PICKUP_LIFETIME_TICKS,
+      });
       slot.plant.sunTimer = def.intervalTicks;
     }
   }
+}
+
+export function advanceSunPickups(room: RoomState) {
+  for (const pickup of room.sunPickups) {
+    pickup.ticksRemaining -= 1;
+  }
+
+  room.sunPickups = room.sunPickups.filter((pickup) => pickup.ticksRemaining > 0);
+}
+
+// Called for both hover (continuous, while the cursor rests over a pickup)
+// and tap/click (single-shot, for touch devices with no hover concept) —
+// the frontend is responsible for choosing when to fire this; the server
+// just validates the pickup still exists and is in range, and — per the
+// shared-economy design — always credits both players' purses regardless of
+// who collected it.
+export function collectSunPickup(room: RoomState, playerId: string, sunId: string, playerX?: number, playerY?: number) {
+  const pickupIndex = room.sunPickups.findIndex((pickup) => pickup.id === sunId);
+  if (pickupIndex === -1) {
+    return { success: false, message: 'Sun not found' };
+  }
+
+  const pickup = room.sunPickups[pickupIndex];
+
+  if (Number.isFinite(playerX) && Number.isFinite(playerY)) {
+    const dx = (playerX as number) - pickup.x;
+    const dy = (playerY as number) - pickup.y;
+    if (Math.sqrt(dx * dx + dy * dy) > SUN_PICKUP_RADIUS) {
+      return { success: false, message: 'Out of range' };
+    }
+  }
+
+  for (const player of room.players) {
+    room.sun[player.playerId] = (room.sun[player.playerId] ?? 0) + pickup.amount;
+  }
+
+  room.sunPickups.splice(pickupIndex, 1);
+  return { success: true };
 }
 
 export function advanceCombat(room: RoomState) {

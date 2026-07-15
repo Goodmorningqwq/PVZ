@@ -47,6 +47,15 @@ export type ZombieState = {
   chompCooldown: number;
 };
 
+export type SunPickupState = {
+  id: string;
+  laneIndex: number;
+  x: number;
+  y: number;
+  amount: number;
+  ticksRemaining: number;
+};
+
 export type RoomState = {
   roomId: string;
   mode: RoomMode;
@@ -54,6 +63,7 @@ export type RoomState = {
   slots: SlotState[];
   zombies: ZombieState[];
   projectiles: SlotProjectileState[];
+  sunPickups: SunPickupState[];
   sun: Record<string, number>;
   tick: number;
   gameOver: boolean;

@@ -44,6 +44,7 @@ function printRoom(roomId: string) {
     waveTimer: room.waveTimer,
     zombies: room.zombies,
     projectiles: room.projectiles,
+    sunPickups: room.sunPickups,
   }, null, 2));
 }
 
