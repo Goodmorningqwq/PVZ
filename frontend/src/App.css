@@ -169,13 +169,17 @@
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.08);
 }
-
+/* TODO: remove the hardcoded colors and use the first sprite frame instead of coloir */
 .shop-card-icon--peashooter {
   background: #3f8f4a;
 }
 
 .shop-card-icon--sunflower {
   background: #e0b73a;
+}
+
+.shop-card-icon--wallnut {
+  background: #8a5a2b;
 }
 
 .shop-card-name {

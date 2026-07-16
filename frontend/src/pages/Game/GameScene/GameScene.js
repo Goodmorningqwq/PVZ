@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { emitCollectSun, emitPlacePlant, getLatestState } from '../../network';
+import { emitCollectSun, emitPlacePlant, getLatestState } from '../../../network';
 import {
   GRASS_COLOR,
   LANE_COLOR,
@@ -93,6 +93,7 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit('hud-update', {
       tick,
       sun: normalizeSun(latestState?.sun),
+      plantDefs: latestState?.plantDefs && typeof latestState.plantDefs === 'object' ? latestState.plantDefs : {},
       wave: Number.isFinite(latestState?.wave) ? latestState.wave : 0,
       waveStatus: latestState?.waveStatus || 'pending',
       totalWaves: Number.isFinite(latestState?.totalWaves) ? latestState.totalWaves : 0,
@@ -111,7 +112,7 @@ export default class GameScene extends Phaser.Scene {
     this.syncSprites(
       this.activePlants,
       plantEntities,
-      (entity) => this.plantRenderer.renderPlant(entity, 1),
+      (entity) => this.plantRenderer.renderPlant(entity),
       (id) => this.plantRenderer.cleanup(id),
     );
     this.syncSprites(

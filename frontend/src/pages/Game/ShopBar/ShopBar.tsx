@@ -1,19 +1,24 @@
 import React from 'react';
-import { PLANT_STATS } from '../../scenes/GameScene/constants';
+
+type PlantDef = {
+  cost: number;
+  label: string;
+};
 
 type ShopBarProps = {
   ownSun: number;
   selectedPlant: string | null;
   onSelectPlant: (plantType: string) => void;
+  plantDefs: Record<string, PlantDef>;
 };
 
-const PLANT_TYPES = Object.keys(PLANT_STATS) as Array<keyof typeof PLANT_STATS>;
+export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDefs }: ShopBarProps) {
+  const plantTypes = Object.keys(plantDefs);
 
-export default function ShopBar({ ownSun, selectedPlant, onSelectPlant }: ShopBarProps) {
   return (
     <div className="shop-bar">
-      {PLANT_TYPES.map((plantType) => {
-        const def = PLANT_STATS[plantType];
+      {plantTypes.map((plantType) => {
+        const def = plantDefs[plantType];
         const affordable = ownSun >= def.cost;
         const isSelected = selectedPlant === plantType;
 

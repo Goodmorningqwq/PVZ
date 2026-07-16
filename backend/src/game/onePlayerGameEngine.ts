@@ -1,7 +1,6 @@
 import { RoomState } from './types.js';
 import {
-  advanceCombat,
-  advanceEconomy,
+  advancePlants,
   advanceProjectiles,
   advanceSunPickups,
   advanceWaveState,
@@ -31,9 +30,8 @@ export {
 function runOnePlayerGameTick(room: RoomState) {
   room.tick += 1;
   advanceWaveState(room);
-  advanceEconomy(room);
+  advancePlants(room);
   advanceSunPickups(room);
-  advanceCombat(room);
   advanceProjectiles(room);
   advanceZombiesNormally(room);
   checkLawnBreach(room);

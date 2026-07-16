@@ -48,11 +48,18 @@ export const PLANT_DEFS = {
     hp: 100,
     damage: 20,
     cooldownTicks: Math.round(1.4 * TICK_RATE),
+    label: 'Peashooter',
   },
   sunflower: {
     cost: 50,
     hp: 100,
     sunAmount: 25,
     intervalTicks: Math.round(24 * TICK_RATE),
+    label: 'Sunflower',
+  },
+  wallnut: {
+    cost: 50,
+    hp: 1000,
+    label: 'Wall-nut',
   },
 } as const;

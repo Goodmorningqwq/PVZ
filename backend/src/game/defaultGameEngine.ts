@@ -1,7 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_HEIGHT, BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_LIFETIME_TICKS, SUN_PICKUP_OFFSET_X_JITTER, SUN_PICKUP_OFFSET_Y, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
+import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
-import { RoomState, SlotState, SlotProjectileState, SlotProjectileType, PlantType, ZombieState } from './types.js';
+import { RoomState, SlotState, SlotProjectileState, PlantType, ZombieState } from './types.js';
+import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
+
+// Static per-plant info the shop UI needs (cost, display label) - computed
+// once from PLANT_DEFS (the single source of truth for plant balance/rules)
+// rather than duplicated as a hardcoded list on the frontend.
+const PLANT_INFO = Object.fromEntries(
+  Object.entries(PLANT_DEFS).map(([type, def]) => [type, { cost: def.cost, label: def.label }]),
+);
 
 export function roomLaneY(laneIndex: number): number {
   const laneMargin = 40;
@@ -58,6 +66,7 @@ export function broadcastState(room: RoomState) {
       amount: pickup.amount,
     })),
     sun: { ...room.sun },
+    plantDefs: PLANT_INFO,
     wave: room.waveIndex + 1,
     waveStatus: room.waveStatus,
     totalWaves: WAVES.length,
@@ -140,46 +149,14 @@ export function advanceWaveState(room: RoomState) {
   }
 }
 
-export function advanceEconomy(room: RoomState) {
+export function advancePlants(room: RoomState) {
   for (const slot of room.slots) {
-    if (!slot.plant || slot.plant.type !== 'sunflower') {
+    if (!slot.plant) {
       continue;
     }
 
-    slot.plant.sunTimer -= 1;
-    if (slot.plant.sunTimer <= 0) {
-      const def = PLANT_DEFS.sunflower;
-      // A sunflower proc no longer credits purses directly — it drops a
-      // collectible sun on the board that either player collects by
-      // hovering/tapping it. Income is only awarded on collection
-      // (collectSunPickup below); an uncollected sun just despawns for
-      // nothing once advanceSunPickups() times it out.
-      //
-      // The landing spot is offset from the sunflower's own slot position
-      // (not dead-center on it) so the sun reads as a separate floating
-      // collectible instead of visually merging into the sunflower's art —
-      // clamped to stay on the board (this is also the collection hit-test
-      // point, so it must stay reachable).
-      const jitterX = (Math.random() * 2 - 1) * SUN_PICKUP_OFFSET_X_JITTER;
-      const landingX = Math.min(
-        BOARD_WIDTH - SUN_PICKUP_RADIUS,
-        Math.max(SUN_PICKUP_RADIUS, slot.x + jitterX),
-      );
-      const landingY = Math.min(
-        BOARD_HEIGHT - SUN_PICKUP_RADIUS,
-        Math.max(SUN_PICKUP_RADIUS, slot.y + SUN_PICKUP_OFFSET_Y),
-      );
-
-      room.sunPickups.push({
-        id: `sun-${uuidv4()}`,
-        laneIndex: slot.laneIndex,
-        x: landingX,
-        y: landingY,
-        amount: def.sunAmount,
-        ticksRemaining: SUN_PICKUP_LIFETIME_TICKS,
-      });
-      slot.plant.sunTimer = def.intervalTicks;
-    }
+    const behavior = PLANT_BEHAVIORS[slot.plant.type];
+    behavior?.(room, slot);
   }
 }
 
@@ -219,33 +196,6 @@ export function collectSunPickup(room: RoomState, playerId: string, sunId: strin
 
   room.sunPickups.splice(pickupIndex, 1);
   return { success: true };
-}
-
-export function advanceCombat(room: RoomState) {
-  for (const slot of room.slots) {
-    if (!slot.plant || slot.plant.type !== 'peashooter') {
-      continue;
-    }
-
-    slot.plant.cooldown -= 1;
-    if (slot.plant.cooldown > 0) {
-      continue;
-    }
-
-    const projectileDef = PROJECTILE_DEFS.pea;
-
-    room.projectiles.push({
-      id: `p-${uuidv4()}`,
-      laneIndex: slot.laneIndex,
-      x: slot.x + 10,
-      y: slot.y,
-      damage: projectileDef.damage,
-      speed: projectileDef.speed,
-      projectileType: projectileDef.projectileType as SlotProjectileType,
-      ownerId: slot.plant.ownerId,
-    });
-    slot.plant.cooldown = PLANT_DEFS.peashooter.cooldownTicks;
-  }
 }
 
 // Returns the fraction t in [0,1] along the segment (startX,startY)->(endX,endY)
@@ -410,6 +360,7 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
     ownerId: playerId,
     cooldown: plantType === 'peashooter' ? PLANT_DEFS.peashooter.cooldownTicks : 0,
     sunTimer: plantType === 'sunflower' ? PLANT_DEFS.sunflower.intervalTicks : 0,
+    state: 'idle',
   };
 
   return { success: true };

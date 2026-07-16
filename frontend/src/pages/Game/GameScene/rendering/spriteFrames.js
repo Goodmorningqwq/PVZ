@@ -2,7 +2,7 @@
 // and turns them into Phaser texture/animation registrations. Adding a new
 // plant or animation state is just dropping files in that folder structure —
 // nothing here needs to change.
-const FRAME_MODULES = import.meta.glob('../../../assets/sprites/*/*/*.{png,svg}', {
+const FRAME_MODULES = import.meta.glob('../../../../assets/sprites/*/*/*.{png,svg}', {
   eager: true,
   import: 'default',
 });

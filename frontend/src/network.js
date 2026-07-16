@@ -8,6 +8,7 @@ let latestState = {
   projectiles: [],
   sunPickups: [],
   zombies: [],
+  plantDefs: {},
   tick: 0,
   wave: 0,
   waveStatus: 'pending',
@@ -51,6 +52,7 @@ function normalizeState(payload) {
     projectiles: normalizeProjectiles(payload?.projectiles),
     sunPickups: normalizeSunPickups(payload?.sunPickups),
     zombies: normalizeEntities(payload?.zombies),
+    plantDefs: normalizePlantDefs(payload?.plantDefs),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
     wave: Number.isFinite(payload?.wave) ? payload.wave : 0,
     waveStatus: typeof payload?.waveStatus === 'string' ? payload.waveStatus : 'pending',
@@ -170,6 +172,25 @@ function normalizeSunPickups(sunPickups) {
       && Number.isFinite(pickup.y)
       && Number.isFinite(pickup.amount),
     );
+}
+
+function normalizePlantDefs(plantDefs) {
+  if (!plantDefs || typeof plantDefs !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(plantDefs)
+      .filter(([type]) => typeof type === 'string' && type.length > 0)
+      .map(([type, def]) => [
+        type,
+        {
+          cost: Number(def?.cost),
+          label: typeof def?.label === 'string' && def.label ? def.label : type,
+        },
+      ])
+      .filter(([, def]) => Number.isFinite(def.cost)),
+  );
 }
 
 function normalizeSun(sun) {

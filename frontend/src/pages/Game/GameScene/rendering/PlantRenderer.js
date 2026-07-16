@@ -1,4 +1,4 @@
-import { HP_LABEL_OFFSET, PLANT_SCALE_MULTIPLIERS, PLANT_SPRITE_SIZE } from '../constants';
+import { HP_LABEL_OFFSET, PLANT_SPRITE_SIZE } from '../constants';
 import { BaseRenderer } from './BaseRenderer';
 import { getAnimationKey, getPlantAnimationStates } from './spriteFrames';
 
@@ -12,10 +12,6 @@ function getIdleAnimationKey(entityType) {
   const plantName = normalizePlantName(entityType);
   const hasIdleAnimation = getPlantAnimationStates(plantName).includes(IDLE_STATE);
   return hasIdleAnimation ? getAnimationKey(plantName, IDLE_STATE) : null;
-}
-
-function getScaleMultiplier(entityType) {
-  return PLANT_SCALE_MULTIPLIERS[normalizePlantName(entityType)] ?? 1;
 }
 
 export class PlantRenderer extends BaseRenderer {
@@ -32,7 +28,6 @@ export class PlantRenderer extends BaseRenderer {
     }
 
     const animationKey = getIdleAnimationKey(entity.type);
-    const effectiveScale = size * getScaleMultiplier(entity.type);
     const cachedSprite = this.spriteCache.get(id);
 
     if (cachedSprite && cachedSprite.animationKey !== animationKey) {
@@ -45,7 +40,7 @@ export class PlantRenderer extends BaseRenderer {
         ? this.scene.add.sprite(entity.x, entity.y).play(animationKey)
         : this.scene.add.rectangle(entity.x, entity.y, 44, 74, 0x5d8d58).setStrokeStyle(2, 0xd5e8c7);
 
-      sprite.setScale(effectiveScale);
+      sprite.setScale(size);
       sprite.setOrigin(0.5);
 
       const hpLabel = this.scene.add
@@ -68,7 +63,7 @@ export class PlantRenderer extends BaseRenderer {
     }
 
     activeSprite.sprite.setPosition(entity.x, entity.y);
-    activeSprite.sprite.setScale(effectiveScale);
+    activeSprite.sprite.setScale(size);
     this.updateHealthLabel(activeSprite.sprite, entity.hp, entity.x, entity.y);
     return activeSprite.sprite;
   }

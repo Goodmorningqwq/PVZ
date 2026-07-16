@@ -1,7 +1,6 @@
 import { PlantType, RoomState } from './types.js';
 import {
-  advanceCombat,
-  advanceEconomy,
+  advancePlants,
   advanceProjectiles,
   advanceSunPickups,
   advanceWaveState,
@@ -21,9 +20,8 @@ const DEMO_SUN = 999999;
 function runDemoRoomTick(room: RoomState) {
   room.tick += 1;
   advanceWaveState(room);
-  advanceEconomy(room);
+  advancePlants(room);
   advanceSunPickups(room);
-  advanceCombat(room);
   advanceProjectiles(room);
   // Zombies stand still in the demo room, so there is no zombie-movement step here.
   checkLawnBreach(room);

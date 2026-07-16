@@ -17,7 +17,7 @@ export const SLOT_MARKER_COLOR = 0xf2f5ee;
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 400;
 
-export const PLANT_SPRITE_SIZE = 1;
+export const PLANT_SPRITE_SIZE = 3;
 export const ZOMBIE_SPRITE_SIZE = 1;
 export const PROJECTILE_RADIUS = 8;
 
@@ -29,19 +29,6 @@ export const SUN_PICKUP_RADIUS = 26;
 // The sun art (assets/sprites/sun/idle/frame-*.svg) is a 128x128 native SVG
 // like sunflower/wallnut — scaled down to roughly match SUN_PICKUP_RADIUS*2.
 export const SUN_SPRITE_SCALE = 0.42;
-
-// Per-plant scale multipliers applied on top of PLANT_SPRITE_SIZE. Plants not
-// listed here render at 1x. Source art isn't uniform: peashooter is a 20x19
-// pixel-art PNG (needs 2x just to read clearly), while sunflower/wallnut are
-// 128x128 SVGs — at the previous "no multiplier" 1x they rendered at their
-// full 128px native size, well over the board's ~88x80px per-slot grid cell,
-// so they visibly overlapped neighboring lanes/columns. 0.45 brings them down
-// to ~58x58px, comparable to the 40x38px peashooter and inside one grid cell.
-export const PLANT_SCALE_MULTIPLIERS = {
-  peashooter: 3,
-  sunflower: 3,
-  wallnut: 0.45,
-};
 
 export const HP_LABEL_OFFSET = {
   plant: { x: 0, y: -42 },
@@ -76,10 +63,3 @@ export function getSlotPositions() {
   }
   return positions;
 }
-
-// --- Plants (numbers mirror backend/src/index.ts PLANT_DEFS; shown in the
-// shop bar so players know cost before placing). ---------------------------
-export const PLANT_STATS = {
-  peashooter: { cost: 100, label: 'Peashooter' },
-  sunflower: { cost: 50, label: 'Sunflower' },
-};

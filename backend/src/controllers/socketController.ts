@@ -4,6 +4,7 @@ import * as onePlayerGameEngine from '../game/onePlayerGameEngine.js';
 import * as demoGameEngine from '../game/demoGameEngine.js';
 import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore.js';
 import { PlantType } from '../game/types.js';
+import { isValidPlantType } from '../game/plants/plantBehaviors.js';
 import { RoomEvents } from '../services/roomEvents.js';
 import { log } from '../utils/logger.js';
 
@@ -98,7 +99,7 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
     socket.on('place_plant', (data: { roomId?: string; playerId?: string; plant?: string; slotIndex?: number }) => {
       const roomId = sanitizeId(data?.roomId);
       const playerId = sanitizeId(data?.playerId);
-      const plantType = data?.plant === 'peashooter' || data?.plant === 'sunflower' ? data.plant : null;
+      const plantType: PlantType | null = isValidPlantType(data?.plant) ? data.plant : null;
       const slotIndex = Number(data?.slotIndex);
 
       const room = getRoom(roomId);
@@ -108,11 +109,11 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
 
       let result: { success: boolean; message?: string };
       if (room.mode === 'demo') {
-        result = demoGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+        result = demoGameEngine.placePlant(room, playerId, plantType, slotIndex);
       } else if (room.mode === 'onePlayer') {
-        result = onePlayerGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+        result = onePlayerGameEngine.placePlant(room, playerId, plantType, slotIndex);
       } else {
-        result = twoPlayerGameEngine.placePlant(room, playerId, plantType as PlantType, slotIndex);
+        result = twoPlayerGameEngine.placePlant(room, playerId, plantType, slotIndex);
       }
       if (!result.success) {
         return;
