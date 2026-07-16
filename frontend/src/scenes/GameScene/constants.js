@@ -38,8 +38,8 @@ export const SUN_SPRITE_SCALE = 0.42;
 // so they visibly overlapped neighboring lanes/columns. 0.45 brings them down
 // to ~58x58px, comparable to the 40x38px peashooter and inside one grid cell.
 export const PLANT_SCALE_MULTIPLIERS = {
-  peashooter: 2,
-  sunflower: 0.45,
+  peashooter: 3,
+  sunflower: 3,
   wallnut: 0.45,
 };
 
