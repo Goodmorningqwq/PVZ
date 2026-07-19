@@ -4,9 +4,11 @@ import plantMatterIcon from '../../../assets/sprites/plantmatter/idle/frame-0.sv
 type PlantMatterBarProps = {
   plantMatter: number;
   // Game.tsx owns the Phaser instance and the latest slot state, so it's the
-  // one that knows how to turn a raw client x/y into a world coordinate and
+  // one that knows how to turn a page coordinate into a world coordinate and
   // find the nearest plant - this component only owns the drag gesture UI.
-  onDrop: (clientX: number, clientY: number) => void;
+  // Deliberately pageX/pageY (not clientX/clientY): Phaser's
+  // ScaleManager.transformX/Y expect page-relative coordinates.
+  onDrop: (pageX: number, pageY: number) => void;
 };
 
 // Bar fill is purely cosmetic - the pool is intentionally uncapped (see
@@ -51,7 +53,7 @@ export default function PlantMatterBar({ plantMatter, onDrop }: PlantMatterBarPr
     setGhostPos(null);
 
     if (shouldDrop) {
-      onDrop(event.clientX, event.clientY);
+      onDrop(event.pageX, event.pageY);
     }
   }
 

@@ -93,25 +93,28 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
     actionToastTimeoutRef.current = window.setTimeout(() => setActionToast(null), 2500);
   }
 
-  // Drag-to-repair/buff: the handle only tells us where on screen the
-  // pointer was released. game.input.transformX/Y convert that raw client
-  // x/y into the same world-space coordinates entities are rendered in
-  // (accounting for Scale.FIT's CSS scaling of the canvas), then we find
-  // the nearest occupied slot within SLOT_RADIUS and target it. No plant
-  // nearby -> silent no-op, per design (dragging onto empty grass just does
-  // nothing, no error needed since nothing was really "attempted").
-  function handleMatterDrop(clientX: number, clientY: number) {
+  // Drag-to-repair/buff: the handle only tells us where on the page the
+  // pointer was released (pageX/pageY, not clientX/clientY - see the
+  // onDrop prop comment in PlantMatterBar.tsx). game.scale.transformX/Y
+  // convert that into the same world-space coordinates entities are
+  // rendered in (accounting for Scale.FIT's CSS scaling of the canvas),
+  // then we find the nearest occupied slot within SLOT_RADIUS and target
+  // it. No plant nearby -> silent no-op, per design (dragging onto empty
+  // grass just does nothing, no error needed since nothing was really
+  // "attempted").
+  function handleMatterDrop(pageX: number, pageY: number) {
     const game = gameRef.current;
     if (!game) {
       return;
     }
 
-    // game.input is already the Phaser.Input.InputManager instance on the
-    // top-level Game object (unlike scene.input, which is an InputPlugin
-    // whose `.manager` property points back to this same InputManager) - so
-    // transformX/Y are called directly on it, no `.manager` hop needed.
-    const worldX = game.input.transformX(clientX);
-    const worldY = game.input.transformY(clientY);
+    // transformX/Y live on the ScaleManager (game.scale), not the
+    // InputManager - confirmed against the installed Phaser 3.90 type defs.
+    // (Earlier attempts at game.input.manager.transformX and
+    // game.input.transformX were both wrong - transformX isn't part of the
+    // InputManager's public API at all in this Phaser version.)
+    const worldX = game.scale.transformX(pageX);
+    const worldY = game.scale.transformY(pageY);
 
     const slots = getLatestState()?.slots ?? [];
     let nearestSlot: { index: number; x: number; y: number } | null = null;
