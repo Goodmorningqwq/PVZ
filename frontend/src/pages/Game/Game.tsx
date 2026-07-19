@@ -94,9 +94,9 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   }
 
   // Drag-to-repair/buff: the handle only tells us where on screen the
-  // pointer was released. game.input.manager.transformX/Y convert that raw
-  // client x/y into the same world-space coordinates entities are rendered
-  // in (accounting for Scale.FIT's CSS scaling of the canvas), then we find
+  // pointer was released. game.input.transformX/Y convert that raw client
+  // x/y into the same world-space coordinates entities are rendered in
+  // (accounting for Scale.FIT's CSS scaling of the canvas), then we find
   // the nearest occupied slot within SLOT_RADIUS and target it. No plant
   // nearby -> silent no-op, per design (dragging onto empty grass just does
   // nothing, no error needed since nothing was really "attempted").
@@ -106,8 +106,12 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       return;
     }
 
-    const worldX = game.input.manager.transformX(clientX);
-    const worldY = game.input.manager.transformY(clientY);
+    // game.input is already the Phaser.Input.InputManager instance on the
+    // top-level Game object (unlike scene.input, which is an InputPlugin
+    // whose `.manager` property points back to this same InputManager) - so
+    // transformX/Y are called directly on it, no `.manager` hop needed.
+    const worldX = game.input.transformX(clientX);
+    const worldY = game.input.transformY(clientY);
 
     const slots = getLatestState()?.slots ?? [];
     let nearestSlot: { index: number; x: number; y: number } | null = null;
