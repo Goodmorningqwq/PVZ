@@ -1,0 +1,21 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Plant matter pickup: a small clump of leafy green matter, visually
+       distinct from the yellow sun pickup (SunRenderer/frame-0.png) so
+       players can tell the two collectibles apart at a glance on the board. -->
+  <defs>
+    <radialGradient id="matterBody" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#8fd16a" />
+      <stop offset="55%" stop-color="#4a8f52" />
+      <stop offset="100%" stop-color="#2f6b38" />
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="32" cy="36" rx="20" ry="16" fill="url(#matterBody)" stroke="#255c2b" stroke-width="2.5" />
+
+  <!-- Two small leaf fronds sprouting from the clump -->
+  <path d="M28 24 C 22 12, 10 12, 8 6 C 14 18, 18 26, 26 30 Z" fill="#5fae5f" stroke="#255c2b" stroke-width="2" stroke-linejoin="round" />
+  <path d="M38 22 C 42 10, 54 8, 58 2 C 50 12, 46 22, 38 28 Z" fill="#6fbf6a" stroke="#255c2b" stroke-width="2" stroke-linejoin="round" />
+
+  <!-- Highlight to give the clump some volume -->
+  <ellipse cx="26" cy="30" rx="6" ry="4" fill="#c8f0a8" opacity="0.65" />
+</svg>

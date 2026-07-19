@@ -1,8 +1,17 @@
-import { HP_LABEL_OFFSET, PLANT_SPRITE_SIZE } from '../constants';
+import { HP_LABEL_OFFSET, PLANT_SCALE_MULTIPLIERS, PLANT_SPRITE_SIZE } from '../constants';
 import { BaseRenderer } from './BaseRenderer';
 import { getAnimationKey, getPlantAnimationStates } from './spriteFrames';
 
 const IDLE_STATE = 'idle';
+
+// Tired: dim/desaturating grey-blue tint reads as "worn out, needs a hand".
+// Buffed: warm gold tint reads as "juiced up" - visually the same direction
+// as the sun/plant-matter pickup palette, so it reads as "fed", not "damaged".
+// Tired always wins if a plant is somehow both (shouldn't normally happen -
+// the server clears buffTicksRemaining priority in advancePlants - but the
+// client tint logic mirrors that same priority defensively).
+const TIRED_TINT = 0x8a95a6;
+const BUFFED_TINT = 0xffe08a;
 
 function normalizePlantName(entityType) {
   return String(entityType ?? '').toLowerCase();
@@ -12,6 +21,10 @@ function getIdleAnimationKey(entityType) {
   const plantName = normalizePlantName(entityType);
   const hasIdleAnimation = getPlantAnimationStates(plantName).includes(IDLE_STATE);
   return hasIdleAnimation ? getAnimationKey(plantName, IDLE_STATE) : null;
+}
+
+function getScaleMultiplier(entityType) {
+  return PLANT_SCALE_MULTIPLIERS[normalizePlantName(entityType)] ?? 1;
 }
 
 export class PlantRenderer extends BaseRenderer {
@@ -28,6 +41,7 @@ export class PlantRenderer extends BaseRenderer {
     }
 
     const animationKey = getIdleAnimationKey(entity.type);
+    const effectiveScale = size * getScaleMultiplier(entity.type);
     const cachedSprite = this.spriteCache.get(id);
 
     if (cachedSprite && cachedSprite.animationKey !== animationKey) {
@@ -40,7 +54,7 @@ export class PlantRenderer extends BaseRenderer {
         ? this.scene.add.sprite(entity.x, entity.y).play(animationKey)
         : this.scene.add.rectangle(entity.x, entity.y, 44, 74, 0x5d8d58).setStrokeStyle(2, 0xd5e8c7);
 
-      sprite.setScale(size);
+      sprite.setScale(effectiveScale);
       sprite.setOrigin(0.5);
 
       const hpLabel = this.scene.add
@@ -63,8 +77,17 @@ export class PlantRenderer extends BaseRenderer {
     }
 
     activeSprite.sprite.setPosition(entity.x, entity.y);
-    activeSprite.sprite.setScale(size);
+    activeSprite.sprite.setScale(effectiveScale);
     this.updateHealthLabel(activeSprite.sprite, entity.hp, entity.x, entity.y);
+
+    if (entity.tired) {
+      activeSprite.sprite.setTint(TIRED_TINT);
+    } else if (entity.buffed) {
+      activeSprite.sprite.setTint(BUFFED_TINT);
+    } else {
+      activeSprite.sprite.clearTint();
+    }
+
     return activeSprite.sprite;
   }
 }

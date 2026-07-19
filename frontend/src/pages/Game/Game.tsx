@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import { onGameOver } from '../../network';
+import { emitUseMatterOnPlant, getLatestState, onActionRejected, onGameOver } from '../../network';
 import ShopBar from './ShopBar/ShopBar';
+import PlantMatterBar from './PlantMatterBar/PlantMatterBar';
 import GameScene from './GameScene/GameScene';
-import { GAME_WIDTH, GAME_HEIGHT } from './GameScene/constants';
+import { GAME_WIDTH, GAME_HEIGHT, SLOT_RADIUS } from './GameScene/constants';
 
 type GameProps = {
   roomId: string;
@@ -22,6 +23,7 @@ type PlantDef = {
 type HudState = {
   tick: number;
   sun: Record<string, number>;
+  plantMatter: number;
   plantDefs: Record<string, PlantDef>;
   wave: number;
   waveStatus: string;
@@ -36,10 +38,18 @@ type GameOverInfo = {
 const initialHud: HudState = {
   tick: 0,
   sun: {},
+  plantMatter: 0,
   plantDefs: {},
   wave: 0,
   waveStatus: 'pending',
   totalWaves: 0,
+};
+
+// Rejection reasons the server can send back over action_rejected, mapped to
+// player-facing copy. Anything not in this map falls back to a generic
+// message rather than surfacing a raw internal reason string.
+const ACTION_REJECTED_MESSAGES: Record<string, string> = {
+  insufficient_plant_matter: 'Not enough plant matter for that yet.',
 };
 
 // Session IDs are long UUIDs meant for the wire, not for a human to read.
@@ -67,10 +77,60 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   const [linkCopied, setLinkCopied] = useState(false);
   const [gameOverInfo, setGameOverInfo] = useState<GameOverInfo | null>(null);
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
+  const [actionToast, setActionToast] = useState<string | null>(null);
+  const actionToastTimeoutRef = useRef<number | null>(null);
 
   function selectPlant(plantType: string) {
     setSelectedPlant(plantType);
     gameRef.current?.registry.set('selectedPlant', plantType);
+  }
+
+  function showActionToast(message: string) {
+    if (actionToastTimeoutRef.current) {
+      window.clearTimeout(actionToastTimeoutRef.current);
+    }
+    setActionToast(message);
+    actionToastTimeoutRef.current = window.setTimeout(() => setActionToast(null), 2500);
+  }
+
+  // Drag-to-repair/buff: the handle only tells us where on screen the
+  // pointer was released. game.input.manager.transformX/Y convert that raw
+  // client x/y into the same world-space coordinates entities are rendered
+  // in (accounting for Scale.FIT's CSS scaling of the canvas), then we find
+  // the nearest occupied slot within SLOT_RADIUS and target it. No plant
+  // nearby -> silent no-op, per design (dragging onto empty grass just does
+  // nothing, no error needed since nothing was really "attempted").
+  function handleMatterDrop(clientX: number, clientY: number) {
+    const game = gameRef.current;
+    if (!game) {
+      return;
+    }
+
+    const worldX = game.input.manager.transformX(clientX);
+    const worldY = game.input.manager.transformY(clientY);
+
+    const slots = getLatestState()?.slots ?? [];
+    let nearestSlot: { index: number; x: number; y: number } | null = null;
+    let nearestDistance = SLOT_RADIUS;
+
+    for (const slot of slots) {
+      if (!slot.plant) {
+        continue;
+      }
+      const dx = slot.x - worldX;
+      const dy = slot.y - worldY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance <= nearestDistance) {
+        nearestDistance = distance;
+        nearestSlot = slot;
+      }
+    }
+
+    if (!nearestSlot) {
+      return;
+    }
+
+    emitUseMatterOnPlant({ roomId, playerId, slotIndex: nearestSlot.index });
   }
 
   async function copyInviteLink() {
@@ -125,6 +185,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       const handler = (payload: {
         tick: number;
         sun: Record<string, number>;
+        plantMatter: number;
         plantDefs: Record<string, PlantDef>;
         wave: number;
         waveStatus: string;
@@ -134,6 +195,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           ...current,
           tick: payload.tick,
           sun: payload.sun || {},
+          plantMatter: Number.isFinite(payload.plantMatter) ? payload.plantMatter : 0,
           plantDefs: payload.plantDefs || {},
           wave: payload.wave,
           waveStatus: payload.waveStatus,
@@ -151,9 +213,26 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       setGameOverInfo({ result, reason: String(payload?.reason || '') });
     });
 
+    // Scoped to use_plant_matter only for now — place_plant/collect_sun
+    // rejections are still silent, matching the rest of this codebase's
+    // established "no feedback on a rejected action" convention. Dragging
+    // plant matter onto a plant is the one action where the reason for
+    // nothing happening isn't otherwise discoverable.
+    const offActionRejected = onActionRejected((payload) => {
+      if (payload?.action !== 'use_plant_matter') {
+        return;
+      }
+      const message = ACTION_REJECTED_MESSAGES[payload?.reason] || "That didn't work.";
+      showActionToast(message);
+    });
+
     return () => {
       offHudUpdate();
       offGameOver();
+      offActionRejected();
+      if (actionToastTimeoutRef.current) {
+        window.clearTimeout(actionToastTimeoutRef.current);
+      }
       gameRef.current = null;
       game.destroy(true);
     };
@@ -196,6 +275,10 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           )}
         </div>
         <div className="hud-hint">Pick a plant below, then click an open slot to place it.</div>
+
+        <PlantMatterBar plantMatter={hud.plantMatter} onDrop={handleMatterDrop} />
+
+        {actionToast && <div className="action-toast">{actionToast}</div>}
 
         <ShopBar ownSun={ownSun} selectedPlant={selectedPlant} onSelectPlant={selectPlant} plantDefs={hud.plantDefs} />
 

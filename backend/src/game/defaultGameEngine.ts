@@ -1,5 +1,27 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BOARD_WIDTH, LAWN_BREACH_X, PLANT_DEFS, STARTING_SUN, SUN_PICKUP_RADIUS, WAVE_BREAK_TICKS, WAVES, ZOMBIE_CHOMP_DAMAGE, ZOMBIE_CHOMP_INTERVAL_TICKS, ZOMBIE_HP, ZOMBIE_RADIUS, ZOMBIE_SPEED, ZOMBIE_SPAWN_X, LANE_COUNT } from './config/gameConfig.js';
+import {
+  BOARD_WIDTH,
+  LAWN_BREACH_X,
+  PLANT_DEFS,
+  PLANT_MATTER_BUFF_COST_MULTIPLIER,
+  PLANT_MATTER_BUFF_DURATION_TICKS,
+  PLANT_MATTER_DROP_MAX,
+  PLANT_MATTER_DROP_MIN,
+  PLANT_MATTER_PICKUP_LIFETIME_TICKS,
+  PLANT_MATTER_PICKUP_RADIUS,
+  PLANT_MATTER_REPAIR_COST,
+  STARTING_SUN,
+  SUN_PICKUP_RADIUS,
+  WAVE_BREAK_TICKS,
+  WAVES,
+  ZOMBIE_CHOMP_DAMAGE,
+  ZOMBIE_CHOMP_INTERVAL_TICKS,
+  ZOMBIE_HP,
+  ZOMBIE_RADIUS,
+  ZOMBIE_SPEED,
+  ZOMBIE_SPAWN_X,
+  LANE_COUNT,
+} from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 import { RoomState, SlotState, SlotProjectileState, PlantType, ZombieState } from './types.js';
 import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
@@ -32,6 +54,10 @@ export function serializeSlots(room: RoomState) {
           type: slot.plant.type,
           hp: slot.plant.hp,
           ownerId: slot.plant.ownerId,
+          stamina: slot.plant.stamina,
+          staminaMax: slot.plant.staminaMax,
+          tired: slot.plant.stamina <= 0,
+          buffed: slot.plant.buffTicksRemaining > 0,
         }
       : null,
   }));
@@ -65,7 +91,15 @@ export function broadcastState(room: RoomState) {
       y: pickup.y,
       amount: pickup.amount,
     })),
+    plantMatterPickups: room.plantMatterPickups.map((pickup) => ({
+      id: pickup.id,
+      laneIndex: pickup.laneIndex,
+      x: pickup.x,
+      y: pickup.y,
+      amount: pickup.amount,
+    })),
     sun: { ...room.sun },
+    plantMatter: room.plantMatter,
     plantDefs: PLANT_INFO,
     wave: room.waveIndex + 1,
     waveStatus: room.waveStatus,
@@ -155,6 +189,13 @@ export function advancePlants(room: RoomState) {
       continue;
     }
 
+    // Buff decay is generic across all plant types (unlike stamina drain,
+    // which is per-behavior since it's tied to each plant's specific action)
+    // so it's handled once here rather than duplicated in every behavior.
+    if (slot.plant.buffTicksRemaining > 0) {
+      slot.plant.buffTicksRemaining -= 1;
+    }
+
     const behavior = PLANT_BEHAVIORS[slot.plant.type];
     behavior?.(room, slot);
   }
@@ -166,6 +207,14 @@ export function advanceSunPickups(room: RoomState) {
   }
 
   room.sunPickups = room.sunPickups.filter((pickup) => pickup.ticksRemaining > 0);
+}
+
+export function advancePlantMatterPickups(room: RoomState) {
+  for (const pickup of room.plantMatterPickups) {
+    pickup.ticksRemaining -= 1;
+  }
+
+  room.plantMatterPickups = room.plantMatterPickups.filter((pickup) => pickup.ticksRemaining > 0);
 }
 
 // Called for both hover (continuous, while the cursor rests over a pickup)
@@ -195,6 +244,36 @@ export function collectSunPickup(room: RoomState, playerId: string, sunId: strin
   }
 
   room.sunPickups.splice(pickupIndex, 1);
+  return { success: true };
+}
+
+// Mirrors collectSunPickup, but plant matter funds a single shared pool
+// (room.plantMatter) rather than crediting per-player purses — both players
+// draw from the same pot when repairing/buffing plants via useMatterOnPlant.
+export function collectPlantMatterPickup(
+  room: RoomState,
+  playerId: string,
+  matterId: string,
+  playerX?: number,
+  playerY?: number,
+) {
+  const pickupIndex = room.plantMatterPickups.findIndex((pickup) => pickup.id === matterId);
+  if (pickupIndex === -1) {
+    return { success: false, message: 'Plant matter not found' };
+  }
+
+  const pickup = room.plantMatterPickups[pickupIndex];
+
+  if (Number.isFinite(playerX) && Number.isFinite(playerY)) {
+    const dx = (playerX as number) - pickup.x;
+    const dy = (playerY as number) - pickup.y;
+    if (Math.sqrt(dx * dx + dy * dy) > PLANT_MATTER_PICKUP_RADIUS) {
+      return { success: false, message: 'Out of range' };
+    }
+  }
+
+  room.plantMatter += pickup.amount;
+  room.plantMatterPickups.splice(pickupIndex, 1);
   return { success: true };
 }
 
@@ -290,6 +369,24 @@ export function advanceProjectiles(room: RoomState) {
       projectile.x = startX + hitFraction * (endX - startX);
       projectile.y = startY + hitFraction * (endY - startY);
       hitZombie.hp -= projectileDef.damage;
+
+      // 100% drop chance on kill (not on breach — a breaching zombie ends
+      // the game immediately, so there's nothing to collect anyway). Amount
+      // is randomized per kill within the configured range.
+      if (hitZombie.hp <= 0) {
+        const amount = Math.round(
+          PLANT_MATTER_DROP_MIN + Math.random() * (PLANT_MATTER_DROP_MAX - PLANT_MATTER_DROP_MIN),
+        );
+        room.plantMatterPickups.push({
+          id: `pm-${uuidv4()}`,
+          laneIndex: hitZombie.laneIndex,
+          x: hitZombie.x,
+          y: hitZombie.y,
+          amount,
+          ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
+        });
+      }
+
       continue;
     }
 
@@ -361,9 +458,41 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
     cooldown: plantType === 'peashooter' ? PLANT_DEFS.peashooter.cooldownTicks : 0,
     sunTimer: plantType === 'sunflower' ? PLANT_DEFS.sunflower.intervalTicks : 0,
     state: 'idle',
+    stamina: def.staminaMax,
+    staminaMax: def.staminaMax,
+    buffTicksRemaining: 0,
   };
 
   return { success: true };
+}
+
+// Drag-to-repair/buff: the client only tells us which slot was targeted, not
+// which action to perform — that's decided server-side based on whether the
+// plant is currently tired. Tired -> repair (stamina reset to max). Not
+// tired -> buff (temporary rate boost), at double the repair cost. Both draw
+// from the single shared room.plantMatter pool.
+export function useMatterOnPlant(room: RoomState, playerId: string, slotIndex: number) {
+  const slot: SlotState | undefined = room.slots[slotIndex];
+  if (!slot || !slot.plant) {
+    return { success: false, message: 'No plant in that slot' };
+  }
+
+  const isTired = slot.plant.stamina <= 0;
+  const cost = isTired ? PLANT_MATTER_REPAIR_COST : PLANT_MATTER_REPAIR_COST * PLANT_MATTER_BUFF_COST_MULTIPLIER;
+
+  if (room.plantMatter < cost) {
+    return { success: false, message: 'insufficient_plant_matter' };
+  }
+
+  room.plantMatter -= cost;
+
+  if (isTired) {
+    slot.plant.stamina = slot.plant.staminaMax;
+  } else {
+    slot.plant.buffTicksRemaining = PLANT_MATTER_BUFF_DURATION_TICKS;
+  }
+
+  return { success: true, action: isTired ? 'repair' : 'buff' };
 }
 
 export function setPlayerSun(room: RoomState, playerId: string, amount: number) {

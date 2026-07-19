@@ -19,6 +19,13 @@ export type SlotPlant = {
   cooldown: number;
   sunTimer: number;
   state: PlantState;
+  stamina: number;
+  staminaMax: number;
+  // Ticks left on an active "fed" buff (1.5x rate) from useMatterOnPlant.
+  // Tired (stamina <= 0) always takes priority over an active buff — a
+  // plant that runs itself down mid-buff goes straight to the slow tired
+  // rate rather than keeping the fast buffed rate until repaired.
+  buffTicksRemaining: number;
 };
 
 export type SlotProjectileState = {
@@ -58,6 +65,15 @@ export type SunPickupState = {
   ticksRemaining: number;
 };
 
+export type PlantMatterPickupState = {
+  id: string;
+  laneIndex: number;
+  x: number;
+  y: number;
+  amount: number;
+  ticksRemaining: number;
+};
+
 export type RoomState = {
   roomId: string;
   mode: RoomMode;
@@ -66,7 +82,11 @@ export type RoomState = {
   zombies: ZombieState[];
   projectiles: SlotProjectileState[];
   sunPickups: SunPickupState[];
+  plantMatterPickups: PlantMatterPickupState[];
   sun: Record<string, number>;
+  // Shared, not per-player like `sun` — a single pool both players draw from
+  // to repair/buff plants (see plantBehaviors.ts / useMatterOnPlant).
+  plantMatter: number;
   tick: number;
   gameOver: boolean;
   result?: 'win' | 'lose';

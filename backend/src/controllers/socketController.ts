@@ -157,6 +157,75 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Sun collected in room ${roomId}: ${playerId} collected ${sunId}`);
     });
 
+    // Same hover/tap dual-path pattern as collect_sun, but for plant matter
+    // dropped by killed zombies.
+    socket.on('collect_plant_matter', (data: { roomId?: string; playerId?: string; matterId?: string; x?: number; y?: number }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+      const matterId = sanitizeId(data?.matterId);
+      const x = Number(data?.x);
+      const y = Number(data?.y);
+
+      const room = getRoom(roomId);
+      if (!room || room.gameOver || !matterId) {
+        return;
+      }
+
+      let result: { success: boolean; message?: string };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.collectPlantMatterPickup(room, playerId, matterId, x, y);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.collectPlantMatterPickup(room, playerId, matterId, x, y);
+      } else {
+        result = twoPlayerGameEngine.collectPlantMatterPickup(room, playerId, matterId, x, y);
+      }
+      if (!result.success) {
+        return;
+      }
+
+      roomEvents.emitState(roomId);
+      log('INFO', `Plant matter collected in room ${roomId}: ${playerId} collected ${matterId}`);
+    });
+
+    // Fired when the player drags the repair handle onto a plant. The
+    // client only names the target slot - repair vs. buff and the exact
+    // cost are decided server-side in useMatterOnPlant based on whether
+    // that plant is currently tired, so the client can't cheat either
+    // branch. On insufficient plant matter (or any other rejection) the
+    // requester gets an explicit action_rejected event instead of silence,
+    // since "why didn't my drag do anything" is much less discoverable
+    // than a rejected plant placement or missed sun.
+    socket.on('use_plant_matter', (data: { roomId?: string; playerId?: string; slotIndex?: number }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+      const slotIndex = Number(data?.slotIndex);
+
+      const room = getRoom(roomId);
+      if (!room || room.gameOver || !Number.isInteger(slotIndex)) {
+        return;
+      }
+
+      let result: { success: boolean; message?: string; action?: string };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.useMatterOnPlant(room, playerId, slotIndex);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.useMatterOnPlant(room, playerId, slotIndex);
+      } else {
+        result = twoPlayerGameEngine.useMatterOnPlant(room, playerId, slotIndex);
+      }
+
+      if (!result.success) {
+        roomEvents.emitActionRejected(socket.id, {
+          action: 'use_plant_matter',
+          reason: result.message || 'rejected',
+        });
+        return;
+      }
+
+      roomEvents.emitState(roomId);
+      log('INFO', `Plant matter used in room ${roomId}: ${playerId} ${result.action} slot ${slotIndex}`);
+    });
+
     socket.on('disconnect', () => {
       log('INFO', `Player disconnected: ${socket.id}`);
 

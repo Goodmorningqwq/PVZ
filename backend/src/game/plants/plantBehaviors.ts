@@ -3,10 +3,14 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   PLANT_DEFS,
+  PLANT_MATTER_BUFF_RATE_MULTIPLIER,
+  PEASHOOTER_STAMINA_DRAIN_PER_SHOT,
+  SUNFLOWER_STAMINA_DRAIN_PER_PROC,
   SUN_PICKUP_LIFETIME_TICKS,
   SUN_PICKUP_OFFSET_X_JITTER,
   SUN_PICKUP_OFFSET_Y,
   SUN_PICKUP_RADIUS,
+  TIRED_RATE_MULTIPLIER,
 } from '../config/gameConfig.js';
 import PROJECTILE_DEFS from '../config/projectileDefs.json' with { type: 'json' };
 import { PlantType, RoomState, SlotProjectileType, SlotState } from '../types.js';
@@ -57,7 +61,27 @@ export function advanceSunflower(room: RoomState, slot: SlotState) {
     amount: def.sunAmount,
     ticksRemaining: SUN_PICKUP_LIFETIME_TICKS,
   });
-  slot.plant.sunTimer = def.intervalTicks;
+
+  // Draining stamina on the same proc that spawns the sun (rather than
+  // continuously) keeps "how many procs until tired" a clean, predictable
+  // number for balancing, per the config comments on
+  // SUNFLOWER_STAMINA_DRAIN_PER_PROC. Floored at 0 - stamina never goes
+  // negative, it just sits at 0 (tired) until repaired.
+  slot.plant.stamina = Math.max(0, slot.plant.stamina - SUNFLOWER_STAMINA_DRAIN_PER_PROC);
+
+  // Tired takes priority over buffed (see the buffTicksRemaining comment in
+  // types.ts) - a plant that runs itself down mid-buff falls straight to the
+  // slow tired rate. Buff shortens the interval (faster procs); tired
+  // lengthens it (slower procs).
+  const isTired = slot.plant.stamina <= 0;
+  const isBuffed = !isTired && slot.plant.buffTicksRemaining > 0;
+  const effectiveInterval = isTired
+    ? def.intervalTicks * TIRED_RATE_MULTIPLIER
+    : isBuffed
+      ? Math.round(def.intervalTicks / PLANT_MATTER_BUFF_RATE_MULTIPLIER)
+      : def.intervalTicks;
+
+  slot.plant.sunTimer = effectiveInterval;
 }
 
 export function advancePeashooter(room: RoomState, slot: SlotState) {
@@ -91,7 +115,17 @@ export function advancePeashooter(room: RoomState, slot: SlotState) {
     projectileType: projectileDef.projectileType as SlotProjectileType,
     ownerId: slot.plant.ownerId,
   });
-  slot.plant.cooldown = PLANT_DEFS.peashooter.cooldownTicks;
+
+  slot.plant.stamina = Math.max(0, slot.plant.stamina - PEASHOOTER_STAMINA_DRAIN_PER_SHOT);
+
+  const isTired = slot.plant.stamina <= 0;
+  const isBuffed = !isTired && slot.plant.buffTicksRemaining > 0;
+  const baseCooldown = PLANT_DEFS.peashooter.cooldownTicks;
+  slot.plant.cooldown = isTired
+    ? baseCooldown * TIRED_RATE_MULTIPLIER
+    : isBuffed
+      ? Math.round(baseCooldown / PLANT_MATTER_BUFF_RATE_MULTIPLIER)
+      : baseCooldown;
 }
 
 // Wall-nut is a pure blocker - it has no per-tick behavior of its own. Zombies

@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { emitCollectSun, emitPlacePlant, getLatestState } from '../../../network';
+import { emitCollectPlantMatter, emitCollectSun, emitPlacePlant, getLatestState } from '../../../network';
 import {
   GRASS_COLOR,
   LANE_COLOR,
   LANE_COLOR_ALT,
   LANE_COUNT,
   LANE_SPACING,
+  PLANT_MATTER_PICKUP_RADIUS,
   SLOT_MARGIN,
   SLOT_MARKER_COLOR,
   SLOT_RADIUS,
@@ -13,7 +14,7 @@ import {
   getLaneY,
   getSlotPositions,
 } from './constants';
-import { PlantRenderer, ProjectileRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
+import { PlantMatterRenderer, PlantRenderer, ProjectileRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
 import { normalizeSun, toStringId } from './utils';
 
 const SLOT_POSITIONS = getSlotPositions();
@@ -32,6 +33,10 @@ export default class GameScene extends Phaser.Scene {
     // second instead of once. Pruned in renderState() once the pickup is
     // gone (collected or expired).
     this.requestedSunIds = new Set();
+    this.activePlantMatterPickups = new Map();
+    this.latestPlantMatterPickups = [];
+    // Same anti-spam guard as requestedSunIds, for plant matter pickups.
+    this.requestedMatterIds = new Set();
   }
 
   preload() {
@@ -44,6 +49,7 @@ export default class GameScene extends Phaser.Scene {
     this.plantRenderer = new PlantRenderer(this);
     this.projectileRenderer = new ProjectileRenderer(this);
     this.sunRenderer = new SunRenderer(this);
+    this.plantMatterRenderer = new PlantMatterRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);
 
     this.cameras.main.setBackgroundColor('#2f4a2a');
@@ -78,6 +84,8 @@ export default class GameScene extends Phaser.Scene {
     const projectiles = Array.isArray(latestState?.projectiles) ? latestState.projectiles : [];
     const sunPickups = Array.isArray(latestState?.sunPickups) ? latestState.sunPickups : [];
     this.latestSunPickups = sunPickups;
+    const plantMatterPickups = Array.isArray(latestState?.plantMatterPickups) ? latestState.plantMatterPickups : [];
+    this.latestPlantMatterPickups = plantMatterPickups;
 
     // Drop any "already requested" guard for suns that are no longer in the
     // latest state (collected, expired, or — extremely unlikely — a ~stale
@@ -90,9 +98,17 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    const liveMatterIds = new Set(plantMatterPickups.map((pickup) => pickup.id));
+    for (const requestedId of this.requestedMatterIds) {
+      if (!liveMatterIds.has(requestedId)) {
+        this.requestedMatterIds.delete(requestedId);
+      }
+    }
+
     this.game.events.emit('hud-update', {
       tick,
       sun: normalizeSun(latestState?.sun),
+      plantMatter: Number.isFinite(latestState?.plantMatter) ? latestState.plantMatter : 0,
       plantDefs: latestState?.plantDefs && typeof latestState.plantDefs === 'object' ? latestState.plantDefs : {},
       wave: Number.isFinite(latestState?.wave) ? latestState.wave : 0,
       waveStatus: latestState?.waveStatus || 'pending',
@@ -103,10 +119,15 @@ export default class GameScene extends Phaser.Scene {
       .filter((slot) => slot.plant)
       .map((slot) => ({
         id: `slot-${slot.index}`,
+        slotIndex: slot.index,
         x: slot.x,
         y: slot.y,
         type: slot.plant.type,
         hp: slot.plant.hp,
+        stamina: slot.plant.stamina,
+        staminaMax: slot.plant.staminaMax,
+        tired: slot.plant.tired,
+        buffed: slot.plant.buffed,
       }));
 
     this.syncSprites(
@@ -132,6 +153,12 @@ export default class GameScene extends Phaser.Scene {
       sunPickups,
       (entity) => this.sunRenderer.renderSun(entity),
       (id) => this.sunRenderer.cleanup(id),
+    );
+    this.syncSprites(
+      this.activePlantMatterPickups,
+      plantMatterPickups,
+      (entity) => this.plantMatterRenderer.renderPlantMatter(entity),
+      (id) => this.plantMatterRenderer.cleanup(id),
     );
   }
 
@@ -191,16 +218,54 @@ export default class GameScene extends Phaser.Scene {
     return true;
   }
 
+  // Mirrors tryCollectSunNear exactly, for plant matter pickups.
+  tryCollectMatterNear(worldX, worldY) {
+    const roomId = this.registry.get('roomId');
+    const playerId = this.registry.get('playerId');
+    if (!roomId || !playerId) {
+      return false;
+    }
+
+    const pickup = this.latestPlantMatterPickups.find((candidate) => {
+      if (this.requestedMatterIds.has(candidate.id)) {
+        return false;
+      }
+      const dx = candidate.x - worldX;
+      const dy = candidate.y - worldY;
+      return Math.sqrt(dx * dx + dy * dy) <= PLANT_MATTER_PICKUP_RADIUS;
+    });
+
+    if (!pickup) {
+      return false;
+    }
+
+    this.requestedMatterIds.add(pickup.id);
+    emitCollectPlantMatter({
+      roomId: toStringId(roomId),
+      playerId: toStringId(playerId),
+      matterId: pickup.id,
+      x: pickup.x,
+      y: pickup.y,
+    });
+    return true;
+  }
+
   handlePointerMove(pointer) {
     this.tryCollectSunNear(pointer.worldX, pointer.worldY);
+    this.tryCollectMatterNear(pointer.worldX, pointer.worldY);
   }
 
   handlePointerDown(pointer) {
     // Tap-to-collect for touch devices (no hover event ever fires there).
     // On desktop this is usually a no-op since hover already requested the
-    // sun the moment the cursor entered range, but it's a harmless second
-    // check either way thanks to the requestedSunIds guard.
-    if (this.tryCollectSunNear(pointer.worldX, pointer.worldY)) {
+    // pickup the moment the cursor entered range, but it's a harmless second
+    // check either way thanks to the requested*Ids guards. Sun and plant
+    // matter are independent pickups that can coexist at different board
+    // positions, so both are checked (not else-if) before falling through
+    // to plant placement.
+    const collectedSun = this.tryCollectSunNear(pointer.worldX, pointer.worldY);
+    const collectedMatter = this.tryCollectMatterNear(pointer.worldX, pointer.worldY);
+    if (collectedSun || collectedMatter) {
       return;
     }
 

@@ -7,6 +7,7 @@ export type RoomEvents = {
   emitState: (roomId: string) => void;
   maybeEmitGameOver: (roomId: string) => void;
   clearGameOverAnnouncement: (roomId: string) => void;
+  emitActionRejected: (socketId: string, payload: { action: string; reason: string }) => void;
 };
 
 export function createRoomEvents(io: SocketIOServer): RoomEvents {
@@ -63,5 +64,15 @@ export function createRoomEvents(io: SocketIOServer): RoomEvents {
     announcedGameOverRooms.delete(roomId);
   }
 
-  return { emitRoomJoined, emitState, maybeEmitGameOver, clearGameOverAnnouncement };
+  // Every other rejected action in this codebase is silently dropped (the
+  // client just never sees a state change). This is the first action that
+  // needs positive "no" feedback — dragging plant matter onto a plant with
+  // an insufficient pool should tell the player why nothing happened rather
+  // than leaving them to guess. Targeted at the requesting socket only, not
+  // broadcast to the room.
+  function emitActionRejected(socketId: string, payload: { action: string; reason: string }) {
+    io.to(socketId).emit('action_rejected', payload);
+  }
+
+  return { emitRoomJoined, emitState, maybeEmitGameOver, clearGameOverAnnouncement, emitActionRejected };
 }

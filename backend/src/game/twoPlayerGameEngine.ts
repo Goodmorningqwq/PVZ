@@ -1,5 +1,6 @@
 import { RoomState } from './types.js';
 import {
+  advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
   advanceSunPickups,
@@ -7,6 +8,7 @@ import {
   advanceZombiesNormally,
   broadcastState,
   checkLawnBreach,
+  collectPlantMatterPickup,
   collectSunPickup,
   endGame,
   forceGameOver,
@@ -14,10 +16,12 @@ import {
   placePlant,
   setPlayerSun,
   spawnZombieInLane,
+  useMatterOnPlant,
 } from './defaultGameEngine.js';
 
 export {
   broadcastState,
+  collectPlantMatterPickup,
   collectSunPickup,
   endGame,
   forceGameOver,
@@ -25,6 +29,7 @@ export {
   placePlant,
   setPlayerSun,
   spawnZombieInLane,
+  useMatterOnPlant,
 };
 
 function runTwoPlayerGameTick(room: RoomState) {
@@ -32,6 +37,7 @@ function runTwoPlayerGameTick(room: RoomState) {
   advanceWaveState(room);
   advancePlants(room);
   advanceSunPickups(room);
+  advancePlantMatterPickups(room);
   advanceProjectiles(room);
   advanceZombiesNormally(room);
   checkLawnBreach(room);

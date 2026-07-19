@@ -1,30 +1,39 @@
 import { PlantType, RoomState } from './types.js';
 import {
+  advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
   advanceSunPickups,
   advanceWaveState,
   broadcastState,
   checkLawnBreach,
+  collectPlantMatterPickup as collectPlantMatterPickupCommon,
   collectSunPickup as collectSunPickupCommon,
   endGame,
   forceGameOver,
   placePlant as placePlantCommon,
   spawnZombieInLane,
+  useMatterOnPlant as useMatterOnPlantCommon,
 } from './defaultGameEngine.js';
 
 export { broadcastState, endGame, forceGameOver, spawnZombieInLane };
 
 const DEMO_SUN = 999999;
+const DEMO_PLANT_MATTER = 999999;
 
 function runDemoRoomTick(room: RoomState) {
   room.tick += 1;
   advanceWaveState(room);
   advancePlants(room);
   advanceSunPickups(room);
+  advancePlantMatterPickups(room);
   advanceProjectiles(room);
   // Zombies stand still in the demo room, so there is no zombie-movement step here.
   checkLawnBreach(room);
+  // Demo mode never runs dry - always top off the shared plant matter pool
+  // back to a large constant, mirroring the DEMO_SUN treatment of per-player
+  // purses below.
+  room.plantMatter = DEMO_PLANT_MATTER;
 }
 
 export function initializePlayerSun(room: RoomState, playerId: string) {
@@ -50,6 +59,26 @@ export function collectSunPickup(room: RoomState, playerId: string, sunId: strin
       room.sun[player.playerId] = DEMO_SUN;
     }
   }
+  return result;
+}
+
+export function collectPlantMatterPickup(
+  room: RoomState,
+  playerId: string,
+  matterId: string,
+  playerX?: number,
+  playerY?: number,
+) {
+  const result = collectPlantMatterPickupCommon(room, playerId, matterId, playerX, playerY);
+  if (result.success) {
+    room.plantMatter = DEMO_PLANT_MATTER;
+  }
+  return result;
+}
+
+export function useMatterOnPlant(room: RoomState, playerId: string, slotIndex: number) {
+  const result = useMatterOnPlantCommon(room, playerId, slotIndex);
+  room.plantMatter = DEMO_PLANT_MATTER;
   return result;
 }
 

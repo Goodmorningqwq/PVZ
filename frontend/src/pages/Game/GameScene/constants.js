@@ -21,6 +21,18 @@ export const PLANT_SPRITE_SIZE = 3;
 export const ZOMBIE_SPRITE_SIZE = 1;
 export const PROJECTILE_RADIUS = 8;
 
+// All three plant sprite sheets (peashooter, sunflower, wallnut) are now
+// consistently ~18-21px pixel-art PNGs, so a single uniform PLANT_SPRITE_SIZE
+// multiplier applies evenly to all of them (~54-63px rendered, fitting inside
+// one ~88x80px grid cell). No per-plant multiplier needed — this used to be
+// required when sunflower/wallnut were 128x128 SVGs on a totally different
+// scale from peashooter's pixel art, but that's no longer the case.
+export const PLANT_SCALE_MULTIPLIERS = {
+  peashooter: 1,
+  sunflower: 1,
+  wallnut: 1,
+};
+
 // Collectible sun (see backend/src/game/config/gameConfig.ts SUN_PICKUP_RADIUS
 // — must match, since the hover/tap hit-test happens client-side for instant
 // feedback and the server independently re-validates range on 'collect_sun').
@@ -29,6 +41,13 @@ export const SUN_PICKUP_RADIUS = 26;
 // The sun art (assets/sprites/sun/idle/frame-*.svg) is a 128x128 native SVG
 // like sunflower/wallnut — scaled down to roughly match SUN_PICKUP_RADIUS*2.
 export const SUN_SPRITE_SCALE = 0.42;
+
+// Plant matter pickup (see backend PLANT_MATTER_PICKUP_RADIUS — must match,
+// same client-side-instant/server-revalidates hit-test pattern as sun).
+export const PLANT_MATTER_COLOR = 0x4a8f52;
+export const PLANT_MATTER_PICKUP_RADIUS = 26;
+// assets/sprites/plantmatter/idle/frame-0.svg is a 64x64 native SVG.
+export const PLANT_MATTER_SPRITE_SCALE = 0.42;
 
 export const HP_LABEL_OFFSET = {
   plant: { x: 0, y: -42 },

@@ -4,9 +4,11 @@ import { BACKEND_URL } from './config';
 let socket = null;
 let latestState = {
   sun: {},
+  plantMatter: 0,
   slots: [],
   projectiles: [],
   sunPickups: [],
+  plantMatterPickups: [],
   zombies: [],
   plantDefs: {},
   tick: 0,
@@ -18,6 +20,7 @@ let latestState = {
 const roomJoinedListeners = new Set();
 const stateUpdateListeners = new Set();
 const gameOverListeners = new Set();
+const actionRejectedListeners = new Set();
 
 function createSocket() {
   if (socket) {
@@ -42,15 +45,21 @@ function createSocket() {
     gameOverListeners.forEach((listener) => listener(payload));
   });
 
+  socket.on('action_rejected', (payload) => {
+    actionRejectedListeners.forEach((listener) => listener(payload));
+  });
+
   return socket;
 }
 
 function normalizeState(payload) {
   return {
     sun: normalizeSun(payload?.sun),
+    plantMatter: Number.isFinite(payload?.plantMatter) ? payload.plantMatter : 0,
     slots: normalizeSlots(payload?.slots),
     projectiles: normalizeProjectiles(payload?.projectiles),
     sunPickups: normalizeSunPickups(payload?.sunPickups),
+    plantMatterPickups: normalizePlantMatterPickups(payload?.plantMatterPickups),
     zombies: normalizeEntities(payload?.zombies),
     plantDefs: normalizePlantDefs(payload?.plantDefs),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
@@ -97,6 +106,10 @@ function normalizeSlots(slots) {
             type: String(slot.plant.type ?? ''),
             hp: Number(slot.plant.hp),
             ownerId: String(slot.plant.ownerId ?? ''),
+            stamina: Number.isFinite(slot.plant.stamina) ? slot.plant.stamina : 0,
+            staminaMax: Number.isFinite(slot.plant.staminaMax) ? slot.plant.staminaMax : 0,
+            tired: Boolean(slot.plant.tired),
+            buffed: Boolean(slot.plant.buffed),
           }
         : null;
 
@@ -152,6 +165,34 @@ function normalizeSunPickups(sunPickups) {
   }
 
   return sunPickups
+    .map((pickup) => {
+      if (!pickup || typeof pickup !== 'object') {
+        return null;
+      }
+
+      return {
+        id: String(pickup.id ?? ''),
+        laneIndex: Number(pickup.laneIndex),
+        x: Number(pickup.x),
+        y: Number(pickup.y),
+        amount: Number(pickup.amount),
+      };
+    })
+    .filter((pickup) =>
+      pickup
+      && pickup.id
+      && Number.isFinite(pickup.x)
+      && Number.isFinite(pickup.y)
+      && Number.isFinite(pickup.amount),
+    );
+}
+
+function normalizePlantMatterPickups(plantMatterPickups) {
+  if (!Array.isArray(plantMatterPickups)) {
+    return [];
+  }
+
+  return plantMatterPickups
     .map((pickup) => {
       if (!pickup || typeof pickup !== 'object') {
         return null;
@@ -328,6 +369,52 @@ export function emitCollectSun({ roomId, playerId, sunId, x, y }) {
   });
 }
 
+export function emitCollectPlantMatter({ roomId, playerId, matterId, x, y }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+  const normalizedMatterId = toStringId(matterId);
+
+  if (!normalizedRoomId || !normalizedPlayerId || !normalizedMatterId) {
+    return;
+  }
+
+  socket.emit('collect_plant_matter', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+    matterId: normalizedMatterId,
+    x: toFiniteNumber(x),
+    y: toFiniteNumber(y),
+  });
+}
+
+// Fired when the player drags the repair handle onto a plant's slot. The
+// server decides repair-vs-buff itself (see useMatterOnPlant in
+// defaultGameEngine.ts) based on whether that plant is currently tired - the
+// client just names the target.
+export function emitUseMatterOnPlant({ roomId, playerId, slotIndex }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+  const normalizedSlotIndex = toFiniteNumber(slotIndex);
+
+  if (!normalizedRoomId || !normalizedPlayerId || normalizedSlotIndex === null) {
+    return;
+  }
+
+  socket.emit('use_plant_matter', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+    slotIndex: normalizedSlotIndex,
+  });
+}
+
 export function onRoomJoined(listener) {
   roomJoinedListeners.add(listener);
   return () => roomJoinedListeners.delete(listener);
@@ -341,6 +428,11 @@ export function onStateUpdate(listener) {
 export function onGameOver(listener) {
   gameOverListeners.add(listener);
   return () => gameOverListeners.delete(listener);
+}
+
+export function onActionRejected(listener) {
+  actionRejectedListeners.add(listener);
+  return () => actionRejectedListeners.delete(listener);
 }
 
 export function getLatestState() {

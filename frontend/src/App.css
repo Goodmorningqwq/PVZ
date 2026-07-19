@@ -195,6 +195,125 @@
   font-family: system-ui, sans-serif;
 }
 
+/* Plant matter bar + drag-to-repair/buff handle */
+
+.plant-matter-bar {
+  position: absolute;
+  left: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 5;
+}
+
+.plant-matter-bar-track {
+  position: relative;
+  width: 22px;
+  height: 150px;
+  background: #f2f5ee;
+  border: 1px solid #e0e6d8;
+  border-radius: 11px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.plant-matter-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, #8fd16a 0%, #4a8f52 100%);
+  transition: height 0.25s ease;
+}
+
+.plant-matter-bar-value {
+  padding: 3px 10px;
+  background: #ffffff;
+  border: 1px solid #e0e6d8;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  color: #2a3324;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Draggable repair/buff handle. Pointer Events (not native HTML5 drag-and-
+   drop, which is desktop-mouse-only) so the exact same handler code works
+   for mouse and touch. touch-action: none stops the browser from treating a
+   drag on this element as a page-scroll gesture on mobile. Sized well above
+   the ~44px touch-target minimum. */
+.plant-matter-handle {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 2px solid #4a8f52;
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.plant-matter-handle img {
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+}
+
+.plant-matter-handle--dragging {
+  cursor: grabbing;
+  opacity: 0.35;
+}
+
+.plant-matter-drag-ghost {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
+  z-index: 50;
+}
+
+/* Toast feedback for a rejected drag-repair action (e.g. not enough plant
+   matter yet) - the one action in this game whose "nothing happened" needs
+   an explicit reason, since the drag gesture itself gives no other signal. */
+.action-toast {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  background: rgba(42, 51, 36, 0.92);
+  color: #f4ffe9;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 6;
+  pointer-events: none;
+  animation: action-toast-in 0.15s ease-out;
+}
+
+@keyframes action-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .copy-link-button {
   margin-left: 12px;
   padding: 3px 10px;
@@ -446,5 +565,31 @@
 
   .menu-card {
     padding: 32px 22px;
+  }
+
+  .plant-matter-bar {
+    left: 14px;
+    gap: 6px;
+  }
+
+  .plant-matter-bar-track {
+    width: 16px;
+    height: 100px;
+  }
+
+  .plant-matter-handle {
+    width: 46px;
+    height: 46px;
+  }
+
+  .plant-matter-handle img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .action-toast {
+    bottom: 96px;
+    font-size: 12px;
+    padding: 8px 14px;
   }
 }
