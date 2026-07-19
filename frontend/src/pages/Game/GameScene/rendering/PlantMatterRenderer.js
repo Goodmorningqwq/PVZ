@@ -15,8 +15,8 @@ function getIdleAnimationKey() {
 // (spawn offset above the drop point, tween down onto the server-authoritative
 // resting x/y, which also doubles as the collection hit-test point) so the
 // two pickup types read as the same family of collectible while still being
-// visually distinct (real art from assets/sprites/plantmatter/idle/, plus a
-// different color for the circle fallback).
+// visually distinct (real art from assets/sprites/ItemTextures/plantmatter/idle/,
+// plus a different color for the circle fallback).
 export class PlantMatterRenderer extends BaseRenderer {
   constructor(scene, assetsPath = '') {
     super(scene, { assetsPath });

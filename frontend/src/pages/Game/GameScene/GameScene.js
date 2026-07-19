@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { emitCollectPlantMatter, emitCollectSun, emitPlacePlant, getLatestState } from '../../../network';
+import gameBackgroundUrl from '../../../assets/gameBackground.png';
 import {
-  GRASS_COLOR,
   LANE_COLOR,
   LANE_COLOR_ALT,
   LANE_COUNT,
@@ -40,6 +40,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image('gameBackground', gameBackgroundUrl);
     preloadPlantAnimations(this);
   }
 
@@ -53,6 +54,8 @@ export default class GameScene extends Phaser.Scene {
     this.zombieRenderer = new ZombieRenderer(this);
 
     this.cameras.main.setBackgroundColor('#2f4a2a');
+    this.backgroundImage = this.add.image(0, 0, 'gameBackground').setOrigin(0, 0);
+    this.backgroundImage.setDisplaySize(this.scale.width, this.scale.height);
     this.background = this.add.graphics();
     this.slotMarkers = this.add.graphics();
 
@@ -321,16 +324,15 @@ export default class GameScene extends Phaser.Scene {
     const laneWidth = Math.max(width - SLOT_MARGIN * 2, 0);
 
     this.background.clear();
-    this.background.fillStyle(GRASS_COLOR, 1);
-    this.background.fillRect(0, 0, width, height);
 
     // 5-row checkerboard lane grid, alternating shades so each zombie lane
-    // reads clearly (matches the classic PvZ board proportions).
+    // reads clearly (matches the classic PvZ board proportions). Drawn with
+    // partial alpha over gameBackground so the lawn art still shows through.
     for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
       const laneY = getLaneY(laneIndex);
       const rowTop = Math.max(0, laneY - LANE_SPACING / 2);
       const rowBottom = Math.min(height, laneY + LANE_SPACING / 2);
-      this.background.fillStyle(laneIndex % 2 === 0 ? LANE_COLOR : LANE_COLOR_ALT, 1);
+      this.background.fillStyle(laneIndex % 2 === 0 ? LANE_COLOR : LANE_COLOR_ALT, 0.35);
       this.background.fillRect(SLOT_MARGIN, rowTop, laneWidth, Math.max(rowBottom - rowTop, 0));
     }
   }

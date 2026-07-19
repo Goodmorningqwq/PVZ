@@ -1,13 +1,15 @@
-// Discovers plant animation frames from assets/sprites/<plantName>/<state>/frame-<n>.(png|svg)
-// and turns them into Phaser texture/animation registrations. Adding a new
-// plant or animation state is just dropping files in that folder structure —
-// nothing here needs to change.
-const FRAME_MODULES = import.meta.glob('../../../../assets/sprites/*/*/*.{png,svg}', {
+// Discovers plant animation frames from
+// assets/sprites/<category>/<plantName>/<state>/frame-<n>.(png|svg), where
+// <category> is just an organizational folder (PlantTextures, ItemTextures)
+// and plays no role in the index — only plantName/state/frameIndex matter.
+// Adding a new plant or animation state is just dropping files in that folder
+// structure — nothing here needs to change.
+const FRAME_MODULES = import.meta.glob('../../../../assets/sprites/*/*/*/*.{png,svg}', {
   eager: true,
   import: 'default',
 });
 
-const FRAME_PATH_PATTERN = /assets\/sprites\/([^/]+)\/([^/]+)\/frame-(\d+)\.\w+$/;
+const FRAME_PATH_PATTERN = /assets\/sprites\/[^/]+\/([^/]+)\/([^/]+)\/frame-(\d+)\.\w+$/;
 
 function buildFrameIndex() {
   const plants = new Map();

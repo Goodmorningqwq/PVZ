@@ -7,7 +7,6 @@ export const PROJECTILE_COLOR = 0x4caf50;
 // completely separate dark "game mode".
 export const LANE_COLOR = 0x7cb06a;
 export const LANE_COLOR_ALT = 0x6fa062; // alternating row shade for the 5-lane checkerboard
-export const GRASS_COLOR = 0x3a5c34;
 export const SLOT_MARKER_COLOR = 0xf2f5ee;
 
 // Fixed logical game resolution. The backend sends entity coordinates in this
@@ -38,7 +37,7 @@ export const PLANT_SCALE_MULTIPLIERS = {
 // feedback and the server independently re-validates range on 'collect_sun').
 export const SUN_COLOR = 0xffd54f;
 export const SUN_PICKUP_RADIUS = 26;
-// The sun art (assets/sprites/sun/idle/frame-*.svg) is a 128x128 native SVG
+// The sun art (assets/sprites/ItemTextures/sun/idle/frame-*.svg) is a 128x128 native SVG
 // like sunflower/wallnut — scaled down to roughly match SUN_PICKUP_RADIUS*2.
 export const SUN_SPRITE_SCALE = 0.42;
 
@@ -46,7 +45,7 @@ export const SUN_SPRITE_SCALE = 0.42;
 // same client-side-instant/server-revalidates hit-test pattern as sun).
 export const PLANT_MATTER_COLOR = 0x4a8f52;
 export const PLANT_MATTER_PICKUP_RADIUS = 26;
-// assets/sprites/plantmatter/idle/frame-0.svg is a 64x64 native SVG.
+// assets/sprites/ItemTextures/plantmatter/idle/frame-0.svg is a 64x64 native SVG.
 export const PLANT_MATTER_SPRITE_SCALE = 0.42;
 
 export const HP_LABEL_OFFSET = {

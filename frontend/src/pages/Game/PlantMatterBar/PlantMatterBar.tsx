@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import plantMatterIcon from '../../../assets/sprites/plantmatter/idle/frame-0.svg';
+import plantMatterIcon from '../../../assets/sprites/ItemTextures/plantmatter/idle/frame-0.svg';
 
 type PlantMatterBarProps = {
   plantMatter: number;

@@ -479,6 +479,13 @@
 
 /* Waiting room (shown between joining a room and the opponent connecting) */
 
+.waiting-room-backdrop {
+  background:
+    linear-gradient(rgba(10, 15, 8, 0.35), rgba(10, 15, 8, 0.35)),
+    url('./assets/waitingRoomBackground.png') center / cover no-repeat;
+  image-rendering: pixelated;
+}
+
 .waiting-code {
   padding: 16px 14px;
   margin-bottom: 18px;

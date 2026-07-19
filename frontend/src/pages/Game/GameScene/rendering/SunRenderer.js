@@ -10,7 +10,7 @@ function getIdleAnimationKey() {
   return hasIdleAnimation ? getAnimationKey(SUN_ASSET_NAME, IDLE_STATE) : null;
 }
 
-// Sun pickups: real art (assets/sprites/sun/idle/frame-*.svg — same
+// Sun pickups: real art (assets/sprites/ItemTextures/sun/idle/frame-*.svg — same
 // discovery/animation pipeline PlantRenderer uses, "sun" just isn't a
 // placeable plant) instead of a plain circle, plus a "popped out" entrance:
 // classic PvZ sun doesn't just appear sitting on the sunflower, it hops out

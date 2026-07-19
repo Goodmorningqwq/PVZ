@@ -22,7 +22,7 @@ export default function WaitingRoom({ roomId, statusText, isDemo, isSolo }: Wait
   }
 
   return (
-    <div className="menu-backdrop">
+    <div className="menu-backdrop waiting-room-backdrop">
       <div className="menu-card">
         {isDemo ? (
           <>
