@@ -44,6 +44,10 @@ export function setPlayerSun(room: RoomState, playerId: string, _amount: number)
   room.sun[playerId] = DEMO_SUN;
 }
 
+export function setPlantMatter(room: RoomState, _amount: number) {
+  room.plantMatter = DEMO_PLANT_MATTER;
+}
+
 export function placePlant(room: RoomState, playerId: string, plantType: PlantType, slotIndex: number) {
   const result = placePlantCommon(room, playerId, plantType, slotIndex);
   if (result.success) {

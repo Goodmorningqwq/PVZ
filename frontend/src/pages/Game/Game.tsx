@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { emitUseMatterOnPlant, getLatestState, onActionRejected, onGameOver } from '../../network';
 import ShopBar from './ShopBar/ShopBar';
 import PlantMatterBar from './PlantMatterBar/PlantMatterBar';
+import SunMeter from './SunMeter/SunMeter';
 import GameScene from './GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT, SLOT_RADIUS } from './GameScene/constants';
 
@@ -56,14 +57,6 @@ const ACTION_REJECTED_MESSAGES: Record<string, string> = {
 // Shorten them for display until real display names exist.
 function shortId(id: string) {
   return id ? id.slice(0, 8) : '';
-}
-
-function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
-  if (waveStatus === 'pending') return 'Get ready...';
-  if (waveStatus === 'break') return `Wave ${wave} cleared — next wave incoming...`;
-  if (waveStatus === 'complete') return 'All waves cleared!';
-  if (totalWaves > 0) return `Wave ${wave} / ${totalWaves}`;
-  return `Wave ${wave}`;
 }
 
 function backToMenu() {
@@ -246,7 +239,6 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   }, [roomId, playerId]);
 
   const ownSun = hud.sun[playerId] ?? 0;
-  const sunEntries = Object.entries(hud.sun);
   const shareable = !demoMode && !onePlayerMode;
 
   return (
@@ -265,47 +257,43 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         <p>Status: {socketStatus} {connected ? '• connected' : '• disconnected'}</p>
       </div>
       <div className="game-stage">
-        <div ref={containerRef} className="game-canvas" />
-        <div className="hud-overlay">
-          <span className={`mode-badge ${demoMode ? 'mode-badge--demo' : onePlayerMode ? 'mode-badge--solo' : 'mode-badge--live'}`}>
-            {demoMode ? 'DEMO' : onePlayerMode ? 'SOLO' : 'LIVE'}
-          </span>
-          <span className="hud-line hud-line--wave">{waveStatusLabel(hud.waveStatus, hud.wave, hud.totalWaves)}</span>
-          {sunEntries.length > 0 ? (
-            sunEntries.map(([id, value]) => (
-              <span className="hud-line" key={id}>
-                {id === playerId ? 'You' : `Teammate (${shortId(id)})`}: {value} sun
-              </span>
-            ))
-          ) : (
-            <span className="hud-line">No sun data yet</span>
+        <div className="game-sidebar">
+          <SunMeter
+            demoMode={demoMode}
+            onePlayerMode={onePlayerMode}
+            playerId={playerId}
+            sun={hud.sun}
+            wave={hud.wave}
+            waveStatus={hud.waveStatus}
+            totalWaves={hud.totalWaves}
+          />
+          <ShopBar ownSun={ownSun} selectedPlant={selectedPlant} onSelectPlant={selectPlant} plantDefs={hud.plantDefs} />
+          <PlantMatterBar plantMatter={hud.plantMatter} onDrop={handleMatterDrop} />
+        </div>
+        <div className="game-canvas-wrapper">
+          <div ref={containerRef} className="game-canvas" />
+          <div className="hud-hint">Pick a plant on the left, then click an open slot to place it.</div>
+
+          {actionToast && <div className="action-toast">{actionToast}</div>}
+
+          {gameOverInfo && (
+            <div className="menu-backdrop gameover-backdrop">
+              <div className="menu-card">
+                <h1 className={`menu-title ${gameOverInfo.result === 'win' ? 'gameover-title--win' : 'gameover-title--lose'}`}>
+                  {gameOverInfo.result === 'win' ? 'You Survived!' : 'The Lawn Was Overrun'}
+                </h1>
+                <p className="menu-subtitle">
+                  {gameOverInfo.result === 'win'
+                    ? 'You and your teammate cleared every wave'
+                    : 'A zombie made it to your side — better luck next time'}
+                </p>
+                <button className="menu-primary-button" type="button" onClick={backToMenu}>
+                  Back to Menu
+                </button>
+              </div>
+            </div>
           )}
         </div>
-        <div className="hud-hint">Pick a plant below, then click an open slot to place it.</div>
-
-        <PlantMatterBar plantMatter={hud.plantMatter} onDrop={handleMatterDrop} />
-
-        {actionToast && <div className="action-toast">{actionToast}</div>}
-
-        <ShopBar ownSun={ownSun} selectedPlant={selectedPlant} onSelectPlant={selectPlant} plantDefs={hud.plantDefs} />
-
-        {gameOverInfo && (
-          <div className="menu-backdrop gameover-backdrop">
-            <div className="menu-card">
-              <h1 className={`menu-title ${gameOverInfo.result === 'win' ? 'gameover-title--win' : 'gameover-title--lose'}`}>
-                {gameOverInfo.result === 'win' ? 'You Survived!' : 'The Lawn Was Overrun'}
-              </h1>
-              <p className="menu-subtitle">
-                {gameOverInfo.result === 'win'
-                  ? 'You and your teammate cleared every wave'
-                  : 'A zombie made it to your side — better luck next time'}
-              </p>
-              <button className="menu-primary-button" type="button" onClick={backToMenu}>
-                Back to Menu
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

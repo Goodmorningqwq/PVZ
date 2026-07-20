@@ -31,8 +31,10 @@ export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDef
             onClick={() => onSelectPlant(plantType)}
           >
             <span className={`shop-card-icon shop-card-icon--${plantType}`} aria-hidden="true" />
-            <span className="shop-card-name">{def.label}</span>
-            <span className="shop-card-cost">{def.cost} sun</span>
+            <span className="shop-card-info">
+              <span className="shop-card-name">{def.label}</span>
+              <span className="shop-card-cost">{def.cost} sun</span>
+            </span>
           </button>
         );
       })}

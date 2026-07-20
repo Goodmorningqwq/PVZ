@@ -499,6 +499,10 @@ export function setPlayerSun(room: RoomState, playerId: string, amount: number) 
   room.sun[playerId] = Math.max(0, Math.floor(amount));
 }
 
+export function setPlantMatter(room: RoomState, amount: number) {
+  room.plantMatter = Math.max(0, Math.floor(amount));
+}
+
 export function forceGameOver(room: RoomState, result: 'win' | 'lose') {
   endGame(room, result);
 }

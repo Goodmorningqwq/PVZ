@@ -26,35 +26,43 @@
 }
 
 .game-stage {
-  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 18px;
   box-sizing: border-box;
+}
+
+.game-sidebar {
+  flex: 0 0 auto;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+  gap: 16px;
+}
+
+.game-canvas-wrapper {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
 }
 
 .game-canvas {
   flex: 1 1 auto;
   display: flex;
   background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
-  padding: 10px;
   box-sizing: border-box;
 }
 
 .game-canvas canvas {
   margin: auto;
-  border-radius: 12px;
 }
 
-.hud-overlay {
-  position: absolute;
-  top: 30px;
-  left: 30px;
+.sun-meter {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -66,7 +74,6 @@
   color: #2a3324;
   font-family: system-ui, sans-serif;
   font-size: 13px;
-  pointer-events: none;
 }
 
 .hud-line {
@@ -120,32 +127,29 @@
 /* Shop bar */
 
 .shop-bar {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px;
   background: #ffffff;
   border: 1px solid #e0e6d8;
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  z-index: 5;
 }
 
 .shop-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  width: 84px;
-  padding: 8px 6px;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
   background: #f2f5ee;
   border: 2px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
+  box-sizing: border-box;
 }
 
 .shop-card:hover:not(:disabled) {
@@ -164,6 +168,7 @@
 }
 
 .shop-card-icon {
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -182,6 +187,14 @@
   background: #8a5a2b;
 }
 
+.shop-card-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
 .shop-card-name {
   font-size: 11px;
   font-weight: 700;
@@ -198,15 +211,11 @@
 /* Plant matter bar + drag-to-repair/buff handle */
 
 .plant-matter-bar {
-  position: absolute;
-  left: 30px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  z-index: 5;
+  margin-top: auto;
 }
 
 .plant-matter-bar-track {
@@ -287,7 +296,7 @@
    an explicit reason, since the drag gesture itself gives no other signal. */
 .action-toast {
   position: absolute;
-  bottom: 110px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   padding: 10px 16px;
@@ -564,7 +573,7 @@
     font-size: 17px;
   }
 
-  .hud-overlay,
+  .sun-meter,
   .hud-hint {
     font-size: 11px;
     padding: 8px 10px;
@@ -574,8 +583,13 @@
     padding: 32px 22px;
   }
 
+  .game-sidebar {
+    width: 150px;
+    padding: 12px;
+    gap: 10px;
+  }
+
   .plant-matter-bar {
-    left: 14px;
     gap: 6px;
   }
 
@@ -595,7 +609,7 @@
   }
 
   .action-toast {
-    bottom: 96px;
+    bottom: 20px;
     font-size: 12px;
     padding: 8px 14px;
   }
