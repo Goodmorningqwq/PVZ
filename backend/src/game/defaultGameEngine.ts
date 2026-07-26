@@ -10,6 +10,7 @@ import {
   PLANT_MATTER_PICKUP_LIFETIME_TICKS,
   PLANT_MATTER_PICKUP_RADIUS,
   PLANT_MATTER_REPAIR_COST,
+  PLANT_REMOVAL_REFUND_FRACTION,
   STARTING_SUN,
   SUN_PICKUP_RADIUS,
   WAVE_BREAK_TICKS,
@@ -464,6 +465,39 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
   };
 
   return { success: true };
+}
+
+// Shovel: remove the plant in a slot and refund part of its sun cost. Either
+// player may remove any plant (placement rights are fully shared, so removal
+// rights are too), but the refund goes to the plant's owner — see
+// PLANT_REMOVAL_REFUND_FRACTION in gameConfig.ts for why.
+//
+// Unlike placePlant, this rejects with explicit reasons rather than failing
+// silently: a shovel click that does nothing is exactly the kind of thing a
+// player can't diagnose on their own (same reasoning as useMatterOnPlant).
+export function removePlant(room: RoomState, playerId: string, slotIndex: number) {
+  const slot: SlotState | undefined = room.slots[slotIndex];
+  if (!slot) {
+    return { success: false, message: 'invalid_slot' };
+  }
+
+  if (!slot.plant) {
+    return { success: false, message: 'no_plant_in_slot' };
+  }
+
+  const removedPlant = slot.plant;
+  const def = PLANT_DEFS[removedPlant.type];
+  const refund = Math.floor(def.cost * PLANT_REMOVAL_REFUND_FRACTION);
+
+  // Fall back to the remover if the owner has somehow left the room (their
+  // purse is gone from room.sun on disconnect), so the refund is never just
+  // dropped on the floor.
+  const refundTarget = removedPlant.ownerId in room.sun ? removedPlant.ownerId : playerId;
+  room.sun[refundTarget] = (room.sun[refundTarget] ?? 0) + refund;
+
+  slot.plant = null;
+
+  return { success: true, action: 'remove', refund, refundTarget, plantType: removedPlant.type };
 }
 
 // Drag-to-repair/buff: the client only tells us which slot was targeted, not

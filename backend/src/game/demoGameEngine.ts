@@ -12,6 +12,7 @@ import {
   endGame,
   forceGameOver,
   placePlant as placePlantCommon,
+  removePlant as removePlantCommon,
   spawnZombieInLane,
   useMatterOnPlant as useMatterOnPlantCommon,
 } from './defaultGameEngine.js';
@@ -52,6 +53,18 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
   const result = placePlantCommon(room, playerId, plantType, slotIndex);
   if (result.success) {
     room.sun[playerId] = DEMO_SUN;
+  }
+  return result;
+}
+
+// The refund is irrelevant in demo mode (purses are pinned to DEMO_SUN), but
+// the removal itself still has to work so the shovel is testable here.
+export function removePlant(room: RoomState, playerId: string, slotIndex: number) {
+  const result = removePlantCommon(room, playerId, slotIndex);
+  if (result.success) {
+    for (const player of room.players) {
+      room.sun[player.playerId] = DEMO_SUN;
+    }
   }
   return result;
 }

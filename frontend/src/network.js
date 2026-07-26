@@ -347,6 +347,29 @@ export function emitPlacePlant({ roomId, playerId, plant, slotIndex }) {
   });
 }
 
+// Shovel. Server-side removePlant decides the refund and who receives it, so
+// the client only names the slot — same "client names the target, server owns
+// the rules" shape as emitUseMatterOnPlant below.
+export function emitRemovePlant({ roomId, playerId, slotIndex }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+  const normalizedSlotIndex = toFiniteNumber(slotIndex);
+
+  if (!normalizedRoomId || !normalizedPlayerId || normalizedSlotIndex === null) {
+    return;
+  }
+
+  socket.emit('remove_plant', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+    slotIndex: normalizedSlotIndex,
+  });
+}
+
 export function emitCollectSun({ roomId, playerId, sunId, x, y }) {
   if (!socket) {
     return;

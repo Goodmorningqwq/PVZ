@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { emitCollectPlantMatter, emitCollectSun, emitPlacePlant, getLatestState } from '../../../network';
+import { emitCollectPlantMatter, emitCollectSun, emitPlacePlant, emitRemovePlant, getLatestState } from '../../../network';
 import gameBackgroundUrl from '../../../assets/gameBackground.png';
 import {
   LANE_COLOR,
@@ -272,8 +272,11 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Shovel and plant selection are mutually exclusive (Game.tsx clears one
+    // when the other is picked), so this can't collide with placement below.
+    const shovelActive = Boolean(this.registry.get('shovelActive'));
     const selectedPlant = this.registry.get('selectedPlant');
-    if (!selectedPlant) {
+    if (!shovelActive && !selectedPlant) {
       return;
     }
 
@@ -287,14 +290,33 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    const occupied = (this.latestSlots || []).some((s) => s.index === slot.index && s.plant);
-    if (occupied) {
-      return;
-    }
-
     const roomId = this.registry.get('roomId');
     const playerId = this.registry.get('playerId');
     if (!roomId || !playerId) {
+      return;
+    }
+
+    const occupied = (this.latestSlots || []).some((s) => s.index === slot.index && s.plant);
+
+    if (shovelActive) {
+      // Clicking bare ground with the shovel out is a deliberate no-op rather
+      // than a rejection — there's nothing there to explain.
+      if (!occupied) {
+        return;
+      }
+
+      emitRemovePlant({
+        roomId: toStringId(roomId),
+        playerId: toStringId(playerId),
+        slotIndex: slot.index,
+      });
+      // One swing per selection, matching classic PvZ: the shovel deactivates
+      // after use so a stray second click can't dig up a neighbouring plant.
+      this.game.events.emit('shovel-used');
+      return;
+    }
+
+    if (occupied) {
       return;
     }
 

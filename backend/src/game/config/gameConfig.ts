@@ -72,6 +72,14 @@ export const PLANT_MATTER_BUFF_COST_MULTIPLIER = 2;
 export const PLANT_MATTER_BUFF_RATE_MULTIPLIER = 1.5;
 export const PLANT_MATTER_BUFF_DURATION_TICKS = 20 * TICK_RATE;
 
+// Shovel / plant removal. Removing a plant refunds a fraction of its original
+// sun cost, floored to a whole number. The refund goes back to the plant's
+// *owner* (the player who paid for it), not to whoever swung the shovel —
+// placement deducts from the placer's purse alone, so this is the clean
+// inverse of that. Either player may remove any plant, matching the fully
+// shared placement rights described in NETWORKING_CONTRACT_REVISED.md.
+export const PLANT_REMOVAL_REFUND_FRACTION = 0.5;
+
 export const PLANT_DEFS = {
   peashooter: {
     cost: 100,

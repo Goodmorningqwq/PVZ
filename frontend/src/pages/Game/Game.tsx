@@ -4,6 +4,7 @@ import { emitUseMatterOnPlant, getLatestState, onActionRejected, onGameOver } fr
 import ShopBar from './ShopBar/ShopBar';
 import PlantMatterBar from './PlantMatterBar/PlantMatterBar';
 import SunMeter from './SunMeter/SunMeter';
+import Shovel from './Shovel/Shovel';
 import GameScene from './GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT, SLOT_RADIUS } from './GameScene/constants';
 
@@ -51,7 +52,22 @@ const initialHud: HudState = {
 // message rather than surfacing a raw internal reason string.
 const ACTION_REJECTED_MESSAGES: Record<string, string> = {
   insufficient_plant_matter: 'Not enough plant matter for that yet.',
+  no_plant_in_slot: 'Nothing to dig up there.',
+  invalid_slot: "That's not a slot.",
 };
+
+// Actions that surface a toast when the server rejects them. Everything else
+// still fails silently, per the convention documented in
+// NETWORKING_CONTRACT_REVISED.md.
+const TOASTED_ACTIONS = new Set(['use_plant_matter', 'remove_plant']);
+
+function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
+  if (waveStatus === 'pending') return 'Get ready...';
+  if (waveStatus === 'break') return `Wave ${wave} cleared — next wave incoming...`;
+  if (waveStatus === 'complete') return 'All waves cleared!';
+  if (totalWaves > 0) return `Wave ${wave} / ${totalWaves}`;
+  return `Wave ${wave}`;
+}
 
 // Session IDs are long UUIDs meant for the wire, not for a human to read.
 // Shorten them for display until real display names exist.
@@ -70,12 +86,30 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   const [linkCopied, setLinkCopied] = useState(false);
   const [gameOverInfo, setGameOverInfo] = useState<GameOverInfo | null>(null);
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
+  const [shovelActive, setShovelActive] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const actionToastTimeoutRef = useRef<number | null>(null);
 
+  // Plant selection and the shovel are mutually exclusive placement modes:
+  // arming one disarms the other, so GameScene's pointerdown handler never has
+  // to decide between placing and digging.
   function selectPlant(plantType: string) {
     setSelectedPlant(plantType);
+    setShovelActive(false);
     gameRef.current?.registry.set('selectedPlant', plantType);
+    gameRef.current?.registry.set('shovelActive', false);
+  }
+
+  function toggleShovel() {
+    setShovelActive((current) => {
+      const next = !current;
+      gameRef.current?.registry.set('shovelActive', next);
+      if (next) {
+        setSelectedPlant(null);
+        gameRef.current?.registry.set('selectedPlant', null);
+      }
+      return next;
+    });
   }
 
   function showActionToast(message: string) {
@@ -153,14 +187,15 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       type: Phaser.AUTO,
       parent: containerRef.current,
       backgroundColor: '#2f4a2a',
-      // The canvas renders at a fixed 800x400 logical resolution (see the
-      // coordinate-system fix above) then gets CSS-scaled up by Scale.FIT to
-      // fill the real window — on most screens that's a 2-3x stretch, which
-      // looks soft/blurry without a matching bump in backing-store
-      // resolution. `resolution` renders at devicePixelRatio internally
-      // while keeping game-logic coordinates at 800x400, so it looks sharp
-      // without touching any entity/slot coordinate math.
-      resolution: window.devicePixelRatio || 1,
+      // NOTE: there used to be a `resolution: window.devicePixelRatio` here,
+      // meant to render at device pixel density while keeping game-logic
+      // coordinates at 800x400. It never did anything — `resolution` was
+      // removed from Phaser's GameConfig in 3.16 and this project is on 3.90,
+      // so it was silently ignored at runtime and a hard type error under
+      // `tsc --noEmit`. The canvas genuinely renders at 800x400 and is
+      // CSS-upscaled by Scale.FIT, which is why everything looks soft. Fixing
+      // that properly means raising the logical resolution on both client and
+      // server, not re-adding this key.
       // Plant sprite frames are pixel art scaled up via PLANT_SPRITE_SIZE.
       // `pixelArt: true` switches every texture to nearest-neighbor/point
       // sampling instead of the default bilinear filtering, and rounds
@@ -180,6 +215,19 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
     game.registry.set('roomId', roomId);
     game.registry.set('playerId', playerId);
     game.registry.set('selectedPlant', selectedPlant);
+    game.registry.set('shovelActive', false);
+
+    // GameScene disarms the shovel after a swing (one plant per arm, like
+    // classic PvZ) — mirror that back into React state so the button's active
+    // styling clears too.
+    const offShovelUsed = (() => {
+      const handler = () => {
+        setShovelActive(false);
+        game.registry.set('shovelActive', false);
+      };
+      game.events.on('shovel-used', handler);
+      return () => game.events.off('shovel-used', handler);
+    })();
 
     const offHudUpdate = (() => {
       const handler = (payload: {
@@ -213,13 +261,13 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       setGameOverInfo({ result, reason: String(payload?.reason || '') });
     });
 
-    // Scoped to use_plant_matter only for now — place_plant/collect_sun
+    // Scoped to the actions in TOASTED_ACTIONS — place_plant/collect_sun
     // rejections are still silent, matching the rest of this codebase's
     // established "no feedback on a rejected action" convention. Dragging
-    // plant matter onto a plant is the one action where the reason for
-    // nothing happening isn't otherwise discoverable.
+    // plant matter onto a plant, and swinging the shovel, are the two actions
+    // where the reason for nothing happening isn't otherwise discoverable.
     const offActionRejected = onActionRejected((payload) => {
-      if (payload?.action !== 'use_plant_matter') {
+      if (!TOASTED_ACTIONS.has(payload?.action)) {
         return;
       }
       const message = ACTION_REJECTED_MESSAGES[payload?.reason] || "That didn't work.";
@@ -230,6 +278,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       offHudUpdate();
       offGameOver();
       offActionRejected();
+      offShovelUsed();
       if (actionToastTimeoutRef.current) {
         window.clearTimeout(actionToastTimeoutRef.current);
       }
@@ -257,22 +306,33 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         <p>Status: {socketStatus} {connected ? '• connected' : '• disconnected'}</p>
       </div>
       <div className="game-stage">
-        <div className="game-sidebar">
-          <SunMeter
-            demoMode={demoMode}
-            onePlayerMode={onePlayerMode}
-            playerId={playerId}
-            sun={hud.sun}
-            wave={hud.wave}
-            waveStatus={hud.waveStatus}
-            totalWaves={hud.totalWaves}
-          />
+        <div className="stage-suns">
+          <SunMeter playerId={playerId} sun={hud.sun} />
+        </div>
+
+        <div className="stage-seedbar">
           <ShopBar ownSun={ownSun} selectedPlant={selectedPlant} onSelectPlant={selectPlant} plantDefs={hud.plantDefs} />
+          <div className="stage-wave">
+            <span className={`mode-badge ${demoMode ? 'mode-badge--demo' : onePlayerMode ? 'mode-badge--solo' : 'mode-badge--live'}`}>
+              {demoMode ? 'DEMO' : onePlayerMode ? 'SOLO' : 'LIVE'}
+            </span>
+            <span className="stage-wave-label">{waveStatusLabel(hud.waveStatus, hud.wave, hud.totalWaves)}</span>
+          </div>
+        </div>
+
+        <div className="stage-tools">
+          <Shovel active={shovelActive} onToggle={toggleShovel} />
+          <div className="stage-tools-spacer" />
           <PlantMatterBar plantMatter={hud.plantMatter} onDrop={handleMatterDrop} />
         </div>
+
         <div className="game-canvas-wrapper">
           <div ref={containerRef} className="game-canvas" />
-          <div className="hud-hint">Pick a plant on the left, then click an open slot to place it.</div>
+          <div className="hud-hint">
+            {shovelActive
+              ? 'Shovel armed — click a plant to dig it up for a partial refund.'
+              : 'Pick a plant above, then click an open slot to place it.'}
+          </div>
 
           {actionToast && <div className="action-toast">{actionToast}</div>}
 

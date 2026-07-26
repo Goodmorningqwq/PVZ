@@ -123,6 +123,43 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Plant placed in room ${roomId}: ${playerId} placed ${plantType} in slot ${slotIndex}`);
     });
 
+    // Shovel. Either player may remove any plant — placement rights are fully
+    // shared, so removal rights are too — but the sun refund goes to whoever
+    // originally paid for the plant (see removePlant in defaultGameEngine.ts).
+    // Rejections get an explicit action_rejected rather than the silent drop
+    // used by place_plant: a shovel swing that quietly does nothing is not
+    // something a player can diagnose.
+    socket.on('remove_plant', (data: { roomId?: string; playerId?: string; slotIndex?: number }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+      const slotIndex = Number(data?.slotIndex);
+
+      const room = getRoom(roomId);
+      if (!room || room.gameOver || !Number.isInteger(slotIndex)) {
+        return;
+      }
+
+      let result: { success: boolean; message?: string; refund?: number };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.removePlant(room, playerId, slotIndex);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.removePlant(room, playerId, slotIndex);
+      } else {
+        result = twoPlayerGameEngine.removePlant(room, playerId, slotIndex);
+      }
+
+      if (!result.success) {
+        roomEvents.emitActionRejected(socket.id, {
+          action: 'remove_plant',
+          reason: result.message || 'rejected',
+        });
+        return;
+      }
+
+      roomEvents.emitState(roomId);
+      log('INFO', `Plant removed in room ${roomId}: ${playerId} removed slot ${slotIndex} (refund ${result.refund})`);
+    });
+
     // Fired by the frontend on both hover (desktop, continuous while the
     // cursor rests over a sun) and tap/click (touch devices, single-shot) —
     // the server doesn't distinguish between the two, it just validates the

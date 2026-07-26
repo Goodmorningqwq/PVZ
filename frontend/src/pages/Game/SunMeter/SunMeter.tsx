@@ -1,47 +1,44 @@
 import React from 'react';
 
 type SunMeterProps = {
-  demoMode: boolean;
-  onePlayerMode: boolean;
   playerId: string;
   sun: Record<string, number>;
-  wave: number;
-  waveStatus: string;
-  totalWaves: number;
 };
 
-// Session IDs are long UUIDs meant for the wire, not for a human to read.
-// Shorten them for display until real display names exist.
-function shortId(id: string) {
-  return id ? id.slice(0, 8) : '';
-}
+// P1/P2 are assigned by join order, not by who is looking: both players see
+// the same label against the same person, which is what makes the labels worth
+// saying out loud ("P2, put a wall-nut in lane 3"). `sun` is serialized from
+// room.sun, whose keys are inserted by initializePlayerSun as each player
+// joins, so Object.keys order is join order. Your own row gets a "you" tag
+// rather than being relabelled, so the shared vocabulary stays intact.
+//
+// Wave/status and the mode badge used to live here; they moved to the app
+// header when this became a pure sun panel (see Game.tsx).
+export default function SunMeter({ playerId, sun }: SunMeterProps) {
+  const entries = Object.entries(sun);
 
-function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
-  if (waveStatus === 'pending') return 'Get ready...';
-  if (waveStatus === 'break') return `Wave ${wave} cleared — next wave incoming...`;
-  if (waveStatus === 'complete') return 'All waves cleared!';
-  if (totalWaves > 0) return `Wave ${wave} / ${totalWaves}`;
-  return `Wave ${wave}`;
-}
-
-export default function SunMeter({ demoMode, onePlayerMode, playerId, sun, wave, waveStatus, totalWaves }: SunMeterProps) {
-  const sunEntries = Object.entries(sun);
+  if (entries.length === 0) {
+    return (
+      <div className="sun-panel">
+        <span className="sun-panel-empty">No sun data yet</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="sun-meter">
-      <span className={`mode-badge ${demoMode ? 'mode-badge--demo' : onePlayerMode ? 'mode-badge--solo' : 'mode-badge--live'}`}>
-        {demoMode ? 'DEMO' : onePlayerMode ? 'SOLO' : 'LIVE'}
-      </span>
-      <span className="hud-line hud-line--wave">{waveStatusLabel(waveStatus, wave, totalWaves)}</span>
-      {sunEntries.length > 0 ? (
-        sunEntries.map(([id, value]) => (
-          <span className="hud-line" key={id}>
-            {id === playerId ? 'You' : `Teammate (${shortId(id)})`}: {value} sun
+    <div className="sun-panel">
+      {entries.map(([id, value], index) => (
+        <div className={`sun-row ${id === playerId ? 'sun-row--self' : ''}`} key={id}>
+          <span className="sun-row-icon" aria-hidden="true" />
+          <span className="sun-row-body">
+            <span className="sun-row-label">
+              P{index + 1}
+              {id === playerId && <span className="sun-row-you">you</span>}
+            </span>
+            <span className="sun-row-value">{value}</span>
           </span>
-        ))
-      ) : (
-        <span className="hud-line">No sun data yet</span>
-      )}
+        </div>
+      ))}
     </div>
   );
 }
