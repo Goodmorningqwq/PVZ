@@ -1,0 +1,36 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shovel: dug-up-plant tool for the left tool rail (Shovel.tsx). Drawn on
+       the same 64x64 grid as the plant matter pickup so the two tools in that
+       column render at matching weight. Angled handle-down-left / blade-up-right
+       so it reads as a shovel at small sizes rather than a generic spade icon. -->
+  <defs>
+    <linearGradient id="shovelHandle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b98a52" />
+      <stop offset="100%" stop-color="#8a6242" />
+    </linearGradient>
+    <linearGradient id="shovelBlade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d8dde3" />
+      <stop offset="60%" stop-color="#a8b2bd" />
+      <stop offset="100%" stop-color="#7d8894" />
+    </linearGradient>
+  </defs>
+
+  <!-- Handle shaft -->
+  <rect x="29.5" y="10" width="7" height="30" rx="3"
+        fill="url(#shovelHandle)" stroke="#5f4229" stroke-width="2" />
+
+  <!-- D-grip at the top -->
+  <path d="M26 12 L26 6 Q32 1 38 6 L38 12"
+        fill="none" stroke="#5f4229" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Collar joining shaft to blade -->
+  <rect x="27" y="38" width="12" height="6" rx="2"
+        fill="#6f7a86" stroke="#4c545e" stroke-width="1.5" />
+
+  <!-- Blade -->
+  <path d="M24 43 L42 43 L40 54 Q33 62 26 54 Z"
+        fill="url(#shovelBlade)" stroke="#4c545e" stroke-width="2" stroke-linejoin="round" />
+
+  <!-- Blade highlight -->
+  <path d="M28 45 L31 45 L30 53 Q29 55 28 53 Z" fill="#eef2f6" opacity="0.55" />
+</svg>

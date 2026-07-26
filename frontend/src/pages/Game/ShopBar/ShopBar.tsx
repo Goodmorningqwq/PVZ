@@ -1,4 +1,5 @@
 import React from 'react';
+import { getIconUrl } from '../GameScene/rendering/spriteFrames';
 
 type PlantDef = {
   cost: number;
@@ -28,6 +29,9 @@ export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDef
         const def = plantDefs[plantType];
         const affordable = ownSun >= def.cost;
         const isSelected = selectedPlant === plantType;
+        // Real sprite art, falling back to the old flat colour swatch only if
+        // a plant type ever ships without frames.
+        const iconUrl = getIconUrl(plantType);
 
         return (
           <button
@@ -37,7 +41,11 @@ export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDef
             disabled={!affordable}
             onClick={() => onSelectPlant(plantType)}
           >
-            <span className={`shop-card-icon shop-card-icon--${plantType}`} aria-hidden="true" />
+            {iconUrl ? (
+              <img className="shop-card-icon shop-card-icon--art" src={iconUrl} alt="" draggable={false} />
+            ) : (
+              <span className={`shop-card-icon shop-card-icon--${plantType}`} aria-hidden="true" />
+            )}
             <span className="shop-card-info">
               <span className="shop-card-name">{def.label}</span>
               <span className="shop-card-cost">{def.cost} sun</span>

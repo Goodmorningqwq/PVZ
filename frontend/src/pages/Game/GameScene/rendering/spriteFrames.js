@@ -58,6 +58,15 @@ export function getPlantFrames(plantName, state) {
   return FRAME_INDEX.get(plantName)?.get(state) ?? [];
 }
 
+// Single still frame for use outside the canvas — shop cards, the sun counter,
+// the shovel button. The React chrome and the Phaser board then draw from one
+// set of files, so adding art in the folder structure updates both at once
+// instead of the HUD drifting into hand-rolled CSS shapes. Returns null when
+// no art exists for that name, so callers can fall back.
+export function getIconUrl(assetName, state = 'idle') {
+  return getPlantFrames(assetName, state)[0]?.url ?? null;
+}
+
 export function getAnimationKey(plantName, state) {
   return `${plantName}-${state}`;
 }

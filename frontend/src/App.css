@@ -151,11 +151,20 @@
 
 .sun-row-icon {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: #ffd54f;
   border: 2px solid #e8b52e;
+}
+
+/* Real sun art replaces the flat circle above — no border/background, the
+   PNG carries its own shape. */
+.sun-row-icon--art {
+  border: none;
+  border-radius: 0;
+  background: none;
+  object-fit: contain;
 }
 
 .sun-row-body {
@@ -281,9 +290,26 @@
   border: 2px solid #5f4229;
 }
 
+/* Real shovel art (assets/sprites/ItemTextures/shovel/idle/frame-0.svg). It's
+   an SVG, so it scales cleanly and needs no pixelated rendering. */
+.shovel-icon--art {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  object-fit: contain;
+}
+
 .shovel-button--active .shovel-icon {
   background: #c2543f;
   border-color: #8d3826;
+}
+
+/* Armed state can't recolour an <img>, so tint it instead. */
+.shovel-button--active .shovel-icon--art {
+  background: none;
+  filter: hue-rotate(-25deg) saturate(1.6);
 }
 
 .shovel-label {
@@ -383,7 +409,22 @@
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.08);
 }
-/* TODO: remove the hardcoded colors and use the first sprite frame instead of coloir */
+
+/* Real sprite art (first idle frame, via getIconUrl) replaces the flat colour
+   swatches below. The source frames are ~20x20 pixel art, so they must be
+   point-sampled at this size or they turn to mush — same reasoning as
+   `pixelArt: true` on the Phaser canvas. */
+.shop-card-icon--art {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Fallback swatches, used only if a plant type ships without sprite frames. */
 .shop-card-icon--peashooter {
   background: #3f8f4a;
 }

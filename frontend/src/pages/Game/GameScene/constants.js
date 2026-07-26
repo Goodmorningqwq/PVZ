@@ -37,16 +37,24 @@ export const PLANT_SCALE_MULTIPLIERS = {
 // feedback and the server independently re-validates range on 'collect_sun').
 export const SUN_COLOR = 0xffd54f;
 export const SUN_PICKUP_RADIUS = 26;
-// The sun art (assets/sprites/ItemTextures/sun/idle/frame-*.svg) is a 128x128 native SVG
-// like sunflower/wallnut — scaled down to roughly match SUN_PICKUP_RADIUS*2.
-export const SUN_SPRITE_SCALE = 0.42;
+// The sun art (assets/sprites/ItemTextures/sun/idle/frame-0.png) is a 50x50
+// PNG, so the scale that makes it fill its hit circle is
+// (SUN_PICKUP_RADIUS * 2) / 50.
+//
+// This used to be 0.42, carried over from when the art really was a 128x128
+// SVG. When the asset was swapped for the 50px PNG the scale wasn't retuned,
+// so sun rendered at 21px inside a 52px hit target — less than half the size
+// it was supposed to be, and much harder to spot on the board than intended.
+export const SUN_SPRITE_SCALE = (SUN_PICKUP_RADIUS * 2) / 50;
 
 // Plant matter pickup (see backend PLANT_MATTER_PICKUP_RADIUS — must match,
 // same client-side-instant/server-revalidates hit-test pattern as sun).
 export const PLANT_MATTER_COLOR = 0x4a8f52;
 export const PLANT_MATTER_PICKUP_RADIUS = 26;
-// assets/sprites/ItemTextures/plantmatter/idle/frame-0.svg is a 64x64 native SVG.
-export const PLANT_MATTER_SPRITE_SCALE = 0.42;
+// assets/sprites/ItemTextures/plantmatter/idle/frame-0.svg is a 64x64 native
+// SVG. Same retune as SUN_SPRITE_SCALE above — 0.42 rendered it at 27px
+// inside a 52px hit circle.
+export const PLANT_MATTER_SPRITE_SCALE = (PLANT_MATTER_PICKUP_RADIUS * 2) / 64;
 
 export const HP_LABEL_OFFSET = {
   plant: { x: 0, y: -42 },

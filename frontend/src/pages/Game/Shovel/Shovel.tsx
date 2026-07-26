@@ -1,4 +1,7 @@
 import React from 'react';
+import { getIconUrl } from '../GameScene/rendering/spriteFrames';
+
+const SHOVEL_ICON_URL = getIconUrl('shovel');
 
 type ShovelProps = {
   active: boolean;
@@ -18,7 +21,11 @@ export default function Shovel({ active, onToggle }: ShovelProps) {
       aria-pressed={active}
       aria-label="Shovel — dig up a planted slot for a partial sun refund"
     >
-      <span className="shovel-icon" aria-hidden="true" />
+      {SHOVEL_ICON_URL ? (
+        <img className="shovel-icon shovel-icon--art" src={SHOVEL_ICON_URL} alt="" draggable={false} />
+      ) : (
+        <span className="shovel-icon" aria-hidden="true" />
+      )}
       <span className="shovel-label">{active ? 'Pick a plant' : 'Shovel'}</span>
     </button>
   );

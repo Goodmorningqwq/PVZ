@@ -1,4 +1,7 @@
 import React from 'react';
+import { getIconUrl } from '../GameScene/rendering/spriteFrames';
+
+const SUN_ICON_URL = getIconUrl('sun');
 
 type SunMeterProps = {
   playerId: string;
@@ -29,7 +32,11 @@ export default function SunMeter({ playerId, sun }: SunMeterProps) {
     <div className="sun-panel">
       {entries.map(([id, value], index) => (
         <div className={`sun-row ${id === playerId ? 'sun-row--self' : ''}`} key={id}>
-          <span className="sun-row-icon" aria-hidden="true" />
+          {SUN_ICON_URL ? (
+            <img className="sun-row-icon sun-row-icon--art" src={SUN_ICON_URL} alt="" draggable={false} />
+          ) : (
+            <span className="sun-row-icon" aria-hidden="true" />
+          )}
           <span className="sun-row-body">
             <span className="sun-row-label">
               P{index + 1}
