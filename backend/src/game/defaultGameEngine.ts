@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   BOARD_WIDTH,
   LAWN_BREACH_X,
+  ORCHESTRATION_STEPS,
+  OrchestrationStep,
   PLANT_DEFS,
   PLANT_MATTER_BUFF_COST_MULTIPLIER,
   PLANT_MATTER_BUFF_DURATION_TICKS,
@@ -13,19 +15,16 @@ import {
   PLANT_REMOVAL_REFUND_FRACTION,
   STARTING_SUN,
   SUN_PICKUP_RADIUS,
-  WAVE_BREAK_TICKS,
-  WAVES,
-  ZOMBIE_CHOMP_DAMAGE,
-  ZOMBIE_CHOMP_INTERVAL_TICKS,
-  ZOMBIE_HP,
+  TICK_RATE,
+  ZOMBIE_DEFS,
   ZOMBIE_RADIUS,
-  ZOMBIE_SPEED,
   ZOMBIE_SPAWN_X,
   LANE_COUNT,
 } from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
-import { RoomState, SlotState, SlotProjectileState, PlantType, ZombieState } from './types.js';
+import { RoomState, SlotState, SlotProjectileState, PlantType, WaveStatus, ZombieState, ZombieType } from './types.js';
 import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
+import { ZOMBIE_BEHAVIORS } from './zombies/zombieBehaviors.js';
 
 // Static per-plant info the shop UI needs (cost, display label) - computed
 // once from PLANT_DEFS (the single source of truth for plant balance/rules)
@@ -80,6 +79,7 @@ export function broadcastState(room: RoomState) {
     })),
     zombies: room.zombies.map((zombie) => ({
       id: zombie.id,
+      type: zombie.type,
       laneIndex: zombie.laneIndex,
       x: zombie.x,
       y: zombie.y,
@@ -102,10 +102,36 @@ export function broadcastState(room: RoomState) {
     sun: { ...room.sun },
     plantMatter: room.plantMatter,
     plantDefs: PLANT_INFO,
-    wave: room.waveIndex + 1,
-    waveStatus: room.waveStatus,
-    totalWaves: WAVES.length,
+    ...computeWaveDisplay(room),
   };
+}
+
+// Pure display shim: derives the legacy wave/waveStatus/totalWaves shape the
+// frontend HUD already parses from the new step-based orchestration state,
+// so the wire contract doesn't change even though RoomState no longer stores
+// wave fields directly.
+function computeWaveDisplay(room: RoomState): { wave: number; waveStatus: WaveStatus; totalWaves: number } {
+  const totalWaves = ORCHESTRATION_STEPS.filter((step) => step.kind === 'event').length;
+
+  let eventOrdinal = 0;
+  for (let index = 0; index <= room.orchestrationStepIndex && index < ORCHESTRATION_STEPS.length; index += 1) {
+    if (ORCHESTRATION_STEPS[index].kind === 'event') {
+      eventOrdinal += 1;
+    }
+  }
+
+  let waveStatus: WaveStatus;
+  if (room.orchestrationStepIndex >= ORCHESTRATION_STEPS.length) {
+    waveStatus = 'complete';
+  } else if (ORCHESTRATION_STEPS[room.orchestrationStepIndex].kind === 'event') {
+    waveStatus = 'spawning';
+  } else if (eventOrdinal === 0) {
+    waveStatus = 'pending';
+  } else {
+    waveStatus = 'break';
+  }
+
+  return { wave: eventOrdinal, waveStatus, totalWaves };
 }
 
 export function endGame(room: RoomState, result: 'win' | 'lose') {
@@ -117,71 +143,89 @@ export function endGame(room: RoomState, result: 'win' | 'lose') {
   room.result = result;
 }
 
-export function spawnZombieInLane(room: RoomState, laneIndex: number) {
+export function spawnZombieInLane(room: RoomState, laneIndex: number, type: ZombieType) {
   const normalizedLaneIndex = Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(laneIndex)));
 
   room.zombies.push({
     id: `z-${uuidv4()}`,
+    type,
     laneIndex: normalizedLaneIndex,
     x: ZOMBIE_SPAWN_X,
     y: roomLaneY(normalizedLaneIndex),
-    hp: ZOMBIE_HP,
+    hp: ZOMBIE_DEFS[type].hp,
     chompCooldown: 0,
   });
 }
 
-export function spawnZombie(room: RoomState) {
+export function spawnZombie(room: RoomState, type: ZombieType) {
   const laneIndex = Math.floor(Math.random() * LANE_COUNT);
-  spawnZombieInLane(room, laneIndex);
+  spawnZombieInLane(room, laneIndex, type);
 }
 
-export function advanceWaveState(room: RoomState) {
-  if (room.waveStatus === 'pending') {
-    room.waveTimer -= 1;
-    if (room.waveTimer <= 0) {
-      room.waveIndex = 0;
-      room.waveStatus = 'spawning';
-      room.zombiesSpawnedInWave = 0;
-      room.waveTimer = 0;
-    }
+export function stepDurationTicks(step: OrchestrationStep): number {
+  return step.seconds * TICK_RATE;
+}
+
+// Walks ORCHESTRATION_STEPS sequentially: 'time' steps just pause, 'event'
+// steps spawn their zombie list spread evenly across the step's duration.
+// Replaces the old WAVES + advanceWaveState state machine — unlike that
+// machine, this is purely time-driven (an 'event' step doesn't wait for the
+// board to clear before the following 'time' step starts counting down).
+// Only reaching the end of the list still gates the win on the board being
+// clear.
+export function advanceOrchestration(room: RoomState) {
+  if (room.gameOver) {
     return;
   }
 
-  if (room.waveStatus === 'spawning') {
-    const wave = WAVES[room.waveIndex];
-
-    if (room.zombiesSpawnedInWave < wave.count) {
-      if (room.waveTimer <= 0) {
-        spawnZombie(room);
-        room.zombiesSpawnedInWave += 1;
-        room.waveTimer = wave.spawnIntervalTicks;
-      } else {
-        room.waveTimer -= 1;
-      }
-      return;
-    }
-
+  if (room.orchestrationStepIndex >= ORCHESTRATION_STEPS.length) {
     if (room.zombies.length === 0) {
-      if (room.waveIndex + 1 >= WAVES.length) {
-        room.waveStatus = 'complete';
-        endGame(room, 'win');
-        return;
-      }
-      room.waveStatus = 'break';
-      room.waveTimer = WAVE_BREAK_TICKS;
+      endGame(room, 'win');
     }
     return;
   }
 
-  if (room.waveStatus === 'break') {
-    room.waveTimer -= 1;
-    if (room.waveTimer <= 0) {
-      room.waveIndex += 1;
-      room.waveStatus = 'spawning';
-      room.zombiesSpawnedInWave = 0;
-      room.waveTimer = 0;
+  const step = ORCHESTRATION_STEPS[room.orchestrationStepIndex];
+
+  if (step.kind === 'time') {
+    room.orchestrationStepTimer -= 1;
+    if (room.orchestrationStepTimer <= 0) {
+      advanceToNextOrchestrationStep(room);
     }
+    return;
   }
+
+  const sequence: ZombieType[] = step.zombies.flatMap((entry) => Array(entry.count).fill(entry.type));
+
+  if (room.orchestrationSpawnedInStep < sequence.length) {
+    if (room.orchestrationStepTimer <= 0) {
+      spawnZombie(room, sequence[room.orchestrationSpawnedInStep]);
+      room.orchestrationSpawnedInStep += 1;
+      const remaining = sequence.length - room.orchestrationSpawnedInStep;
+      room.orchestrationStepTimer = remaining > 0
+        ? Math.max(1, Math.round(stepDurationTicks(step) / sequence.length))
+        : 0;
+    } else {
+      room.orchestrationStepTimer -= 1;
+    }
+    return;
+  }
+
+  if (room.orchestrationStepTimer > 0) {
+    room.orchestrationStepTimer -= 1;
+    return;
+  }
+
+  advanceToNextOrchestrationStep(room);
+}
+
+function advanceToNextOrchestrationStep(room: RoomState) {
+  room.orchestrationStepIndex += 1;
+  room.orchestrationSpawnedInStep = 0;
+  const nextStep = ORCHESTRATION_STEPS[room.orchestrationStepIndex];
+  // 'time' steps count down the full pause; 'event' steps start at 0 so the
+  // first zombie spawns immediately rather than waiting a full step-duration.
+  room.orchestrationStepTimer = nextStep && nextStep.kind === 'time' ? stepDurationTicks(nextStep) : 0;
 }
 
 export function advancePlants(room: RoomState) {
@@ -405,24 +449,18 @@ export function advanceProjectiles(room: RoomState) {
 
 export function advanceZombiesNormally(room: RoomState) {
   for (const zombie of room.zombies) {
+    const speed = ZOMBIE_DEFS[zombie.type].speed;
     const laneSlots = room.slots.filter((slot) => slot.laneIndex === zombie.laneIndex);
-    const blockingSlot = laneSlots.find((slot) => slot.plant && Math.abs(slot.x - zombie.x) < ZOMBIE_SPEED);
+    const blockingSlot = laneSlots.find((slot) => slot.plant && Math.abs(slot.x - zombie.x) < speed);
 
     if (blockingSlot) {
       zombie.x = blockingSlot.x;
-      zombie.chompCooldown -= 1;
-      if (zombie.chompCooldown <= 0 && blockingSlot.plant) {
-        blockingSlot.plant.hp -= ZOMBIE_CHOMP_DAMAGE;
-        zombie.chompCooldown = ZOMBIE_CHOMP_INTERVAL_TICKS;
-        if (blockingSlot.plant.hp <= 0) {
-          blockingSlot.plant = null;
-        }
-      }
+      ZOMBIE_BEHAVIORS[zombie.type]?.(room, zombie, blockingSlot);
       continue;
     }
 
     zombie.chompCooldown = 0;
-    const nextX = zombie.x - ZOMBIE_SPEED;
+    const nextX = zombie.x - speed;
     const passedSlot = laneSlots.find((slot) => slot.plant && slot.x <= zombie.x && slot.x > nextX);
     zombie.x = passedSlot ? passedSlot.x : nextX;
   }

@@ -9,11 +9,7 @@ export const LAWN_BREACH_X = 0;
 
 export const TICK_RATE = Number(process.env.TICK_RATE || 20);
 export const STARTING_SUN = 150;
-export const PRE_GAME_DELAY_TICKS = 6 * TICK_RATE;
-export const WAVE_BREAK_TICKS = 8 * TICK_RATE;
 
-export const ZOMBIE_HP = 20;
-export const ZOMBIE_SPEED = 1;
 export const ZOMBIE_RADIUS = 16;
 export const ZOMBIE_CHOMP_DAMAGE = 20;
 export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
@@ -36,10 +32,35 @@ export const SUN_PICKUP_LIFETIME_TICKS = 20 * TICK_RATE;
 export const SUN_PICKUP_OFFSET_Y = -34;
 export const SUN_PICKUP_OFFSET_X_JITTER = 16; // +/- this, randomized per spawn
 
-export const WAVES = [
-  { count: 3, spawnIntervalTicks: 6 * TICK_RATE },
-  { count: 5, spawnIntervalTicks: 5 * TICK_RATE },
-  { count: 7, spawnIntervalTicks: 4 * TICK_RATE },
+export const ZOMBIE_DEFS = {
+  shambler: {
+    hp: 20,
+    speed: 1,
+    label: 'Shambler',
+  },
+  runner: {
+    hp: 12,
+    speed: 2,
+    label: 'Runner',
+  },
+} as const;
+
+export type OrchestrationStep =
+  | { kind: 'time'; seconds: number }
+  | { kind: 'event'; zombies: { type: keyof typeof ZOMBIE_DEFS; count: number }[]; seconds: number };
+
+// Hardcoded, fully deterministic level script: 'time' steps are a pause
+// before advancing, 'event' steps spawn the listed zombies spread evenly
+// across `seconds`. Replaces the old WAVES + advanceWaveState state machine
+// (see defaultGameEngine.ts advanceOrchestration) — the first 'time' step
+// doubles as the old pre-game delay.
+export const ORCHESTRATION_STEPS: OrchestrationStep[] = [
+  { kind: 'time', seconds: 6 },
+  { kind: 'event', zombies: [{ type: 'shambler', count: 3 }], seconds: 18 },
+  { kind: 'time', seconds: 8 },
+  { kind: 'event', zombies: [{ type: 'shambler', count: 4 }, { type: 'runner', count: 2 }], seconds: 20 },
+  { kind: 'time', seconds: 8 },
+  { kind: 'event', zombies: [{ type: 'shambler', count: 3 }, { type: 'runner', count: 5 }], seconds: 20 },
 ];
 
 // Plant stamina: every peashooter shot / sunflower proc drains a bit of

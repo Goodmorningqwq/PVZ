@@ -1,9 +1,15 @@
 import readline from 'node:readline';
 import { forceGameOver, spawnZombieInLane } from '../game/defaultGameEngine.js';
+import { ZOMBIE_DEFS } from '../game/config/gameConfig.js';
+import { ZombieType } from '../game/types.js';
 import { advanceTwoPlayerRoomTicks, setPlayerSun as setTwoPlayerPlayerSun } from '../game/twoPlayerGameEngine.js';
 import { advanceOnePlayerRoomTicks, setPlayerSun as setOnePlayerPlayerSun } from '../game/onePlayerGameEngine.js';
 import { advanceDemoRoomTicks, setPlayerSun as setDemoPlayerSun } from '../game/demoGameEngine.js';
 import { getRoom, getRooms } from '../room/roomStore.js';
+
+function isZombieType(value: string): value is ZombieType {
+  return value in ZOMBIE_DEFS;
+}
 
 type AdminCliContext = {
   emitState: (roomId: string) => void;
@@ -18,7 +24,7 @@ function printHelp() {
     '  rooms',
     '  room <roomId>',
     '  give-sun <roomId> <playerId> <amount>',
-    '  spawn-zombie <roomId> <laneIndex>',
+    '  spawn-zombie <roomId> <laneIndex> [type]',
     '  advance <roomId> <ticks>',
     '  game-over <roomId> <win|lose>',
     '  exit',
@@ -39,9 +45,9 @@ function printRoom(roomId: string) {
     tick: room.tick,
     gameOver: room.gameOver,
     result: room.result,
-    waveIndex: room.waveIndex,
-    waveStatus: room.waveStatus,
-    waveTimer: room.waveTimer,
+    orchestrationStepIndex: room.orchestrationStepIndex,
+    orchestrationStepTimer: room.orchestrationStepTimer,
+    orchestrationSpawnedInStep: room.orchestrationSpawnedInStep,
     zombies: room.zombies,
     projectiles: room.projectiles,
     sunPickups: room.sunPickups,
@@ -54,7 +60,7 @@ function printRooms() {
     players: room.players.map((player) => player.playerId),
     tick: room.tick,
     gameOver: room.gameOver,
-    waveStatus: room.waveStatus,
+    orchestrationStepIndex: room.orchestrationStepIndex,
     zombies: room.zombies.length,
     projectiles: room.projectiles.length,
   }));
@@ -116,16 +122,17 @@ export function startAdminCli(context: AdminCliContext) {
           break;
         }
         case 'spawn-zombie': {
-          const [roomId, laneIndexText] = args;
+          const [roomId, laneIndexText, typeText] = args;
           const laneIndex = Number(laneIndexText);
+          const type = typeText ?? 'shambler';
           const room = roomId ? getRoom(roomId) : null;
-          if (!room || !Number.isFinite(laneIndex)) {
-            console.log('Usage: spawn-zombie <roomId> <laneIndex>');
+          if (!room || !Number.isFinite(laneIndex) || !isZombieType(type)) {
+            console.log('Usage: spawn-zombie <roomId> <laneIndex> [type]');
             break;
           }
-          spawnZombieInLane(room, laneIndex);
+          spawnZombieInLane(room, laneIndex, type);
           context.emitState(roomId);
-          console.log(`Spawned zombie in ${roomId} lane ${Math.floor(laneIndex)}`);
+          console.log(`Spawned ${type} in ${roomId} lane ${Math.floor(laneIndex)}`);
           break;
         }
         case 'advance': {

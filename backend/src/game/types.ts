@@ -1,8 +1,11 @@
-import { PLANT_DEFS } from './config/gameConfig.js';
+import { PLANT_DEFS, ZOMBIE_DEFS } from './config/gameConfig.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 
 export type PlantType = keyof typeof PLANT_DEFS;
+export type ZombieType = keyof typeof ZOMBIE_DEFS;
 export type SlotProjectileType = keyof typeof PROJECTILE_DEFS;
+// Display-only status for the broadcast wave HUD, derived from orchestration
+// state in defaultGameEngine.ts (see computeWaveDisplay) — not stored on RoomState.
 export type WaveStatus = 'pending' | 'spawning' | 'break' | 'complete';
 export type RoomMode = 'twoPlayer' | 'onePlayer' | 'demo';
 export type PlantState = 'idle' | 'attack';
@@ -49,6 +52,7 @@ export type SlotState = {
 
 export type ZombieState = {
   id: string;
+  type: ZombieType;
   laneIndex: number;
   x: number;
   y: number;
@@ -90,8 +94,7 @@ export type RoomState = {
   tick: number;
   gameOver: boolean;
   result?: 'win' | 'lose';
-  waveIndex: number;
-  waveStatus: WaveStatus;
-  waveTimer: number;
-  zombiesSpawnedInWave: number;
+  orchestrationStepIndex: number;
+  orchestrationStepTimer: number;
+  orchestrationSpawnedInStep: number;
 };

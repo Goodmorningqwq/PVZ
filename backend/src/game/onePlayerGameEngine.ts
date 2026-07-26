@@ -1,10 +1,10 @@
 import { RoomState } from './types.js';
 import {
+  advanceOrchestration,
   advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
   advanceSunPickups,
-  advanceWaveState,
   advanceZombiesNormally,
   broadcastState,
   checkLawnBreach,
@@ -38,7 +38,7 @@ export {
 
 function runOnePlayerGameTick(room: RoomState) {
   room.tick += 1;
-  advanceWaveState(room);
+  advanceOrchestration(room);
   advancePlants(room);
   advanceSunPickups(room);
   advancePlantMatterPickups(room);
