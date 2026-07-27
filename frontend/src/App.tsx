@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { connect, connectDemo, connectOnePlayer, disconnect, onRoomJoined } from './network';
-import RoomMenu from './pages/RoomMenu/RoomMenu';
+import ModeSelect from './pages/ModeSelect/ModeSelect';
+import GameSettings, { Difficulty } from './pages/GameSettings/GameSettings';
 import WaitingRoom from './pages/WaitingRoom/WaitingRoom';
 import Game from './pages/Game/Game';
 import './App.css';
 
-type Phase = 'menu' | 'waiting' | 'playing';
+type Phase = 'mode-select' | 'settings' | 'waiting' | 'playing';
+type SelectedMode = 'multiplayer' | 'singleplayer' | null;
+
+const VALID_DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
 
 function getSearchParam(name: string) {
   return new URLSearchParams(window.location.search).get(name) || '';
@@ -43,7 +47,7 @@ export default function App() {
   }, []);
 
   // roomId starts from the URL (so shared links still work) but is otherwise
-  // controlled by the room menu below, not required to be hand-typed into the URL.
+  // controlled by the settings page below, not required to be hand-typed into the URL.
   // This is deliberately never overwritten by the server's confirmed room id
   // (see confirmedRoomId below) - it's a dependency of the connect effect, so
   // feeding the confirmed id back into it would retrigger that effect
@@ -51,17 +55,41 @@ export default function App() {
   // demo/solo rooms where the server assigns a fresh id per connection.
   const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
   const [confirmedRoomId, setConfirmedRoomId] = useState('');
+  const [selectedMode, setSelectedMode] = useState<SelectedMode>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
+    const raw = getSearchParam('difficulty');
+    return (VALID_DIFFICULTIES as string[]).includes(raw) ? (raw as Difficulty) : 'medium';
+  });
   const [phase, setPhase] = useState<Phase>(() => {
     if (demoMode || onePlayerMode || getSearchParam('room')) return 'waiting';
-    return 'menu';
+    return 'mode-select';
   });
 
-  function joinRoom(roomId: string) {
+  function selectMode(mode: 'multiplayer' | 'singleplayer') {
+    setSelectedMode(mode);
+    setPhase('settings');
+  }
+
+  function backToModeSelect() {
+    setPhase('mode-select');
+  }
+
+  function startMultiplayer(roomId: string, chosenDifficulty: Difficulty) {
     const url = new URL(window.location.href);
     url.searchParams.set('room', roomId);
+    url.searchParams.set('difficulty', chosenDifficulty);
     window.history.replaceState({}, '', url.toString());
     setActiveRoomId(roomId);
+    setDifficulty(chosenDifficulty);
     setPhase('waiting');
+  }
+
+  function startSolo(chosenDifficulty: Difficulty) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('solo', '1');
+    url.searchParams.set('difficulty', chosenDifficulty);
+    window.history.replaceState({}, '', url.toString());
+    window.location.reload();
   }
 
   function playDemo() {
@@ -71,19 +99,14 @@ export default function App() {
     window.location.reload();
   }
 
-  function playSolo() {
-    const url = new URL(window.location.href);
-    url.searchParams.set('solo', '1');
-    window.history.replaceState({}, '', url.toString());
-    window.location.reload();
-  }
-
   // Socket lifecycle: connect as soon as a room is chosen, well before the
   // Game page ever mounts. The "waiting for opponent" screen is plain HTML
   // (WaitingRoom) rather than Phaser canvas text, so there's nothing to
   // render until the match actually starts.
+  const isPreConnectPhase = phase === 'mode-select' || phase === 'settings';
+
   useEffect(() => {
-    if (phase === 'menu' || (!demoMode && !onePlayerMode && !activeRoomId)) {
+    if (isPreConnectPhase || (!demoMode && !onePlayerMode && !activeRoomId)) {
       return;
     }
 
@@ -91,9 +114,9 @@ export default function App() {
     if (demoMode) {
       connectDemo({ playerId });
     } else if (onePlayerMode) {
-      connectOnePlayer({ playerId });
+      connectOnePlayer({ playerId, difficulty });
     } else {
-      connect({ roomId: activeRoomId, playerId });
+      connect({ roomId: activeRoomId, playerId, difficulty });
     }
 
     const offRoomJoined = onRoomJoined((payload) => {
@@ -109,13 +132,24 @@ export default function App() {
       offRoomJoined();
       disconnect();
     };
-    // Deliberately depends on (phase === 'menu') rather than `phase` itself:
+    // Deliberately depends on isPreConnectPhase rather than `phase` itself:
     // this effect should stay connected across the waiting -> playing
     // transition, not tear down and reconnect when the match starts.
-  }, [demoMode, onePlayerMode, phase === 'menu', activeRoomId, playerId]);
+  }, [demoMode, onePlayerMode, isPreConnectPhase, activeRoomId, playerId, difficulty]);
 
-  if (phase === 'menu') {
-    return <RoomMenu onJoin={joinRoom} onPlayDemo={playDemo} onPlaySolo={playSolo} />;
+  if (phase === 'mode-select') {
+    return <ModeSelect onSelectMode={selectMode} onPlayDemo={playDemo} />;
+  }
+
+  if (phase === 'settings' && selectedMode) {
+    return (
+      <GameSettings
+        mode={selectedMode}
+        onBack={backToModeSelect}
+        onStartSolo={startSolo}
+        onStartMultiplayer={startMultiplayer}
+      />
+    );
   }
 
   if (phase === 'waiting') {

@@ -45,24 +45,6 @@ export const ZOMBIE_DEFS = {
   },
 } as const;
 
-export type OrchestrationStep =
-  | { kind: 'time'; seconds: number }
-  | { kind: 'event'; zombies: { type: keyof typeof ZOMBIE_DEFS; count: number }[]; seconds: number };
-
-// Hardcoded, fully deterministic level script: 'time' steps are a pause
-// before advancing, 'event' steps spawn the listed zombies spread evenly
-// across `seconds`. Replaces the old WAVES + advanceWaveState state machine
-// (see defaultGameEngine.ts advanceOrchestration) — the first 'time' step
-// doubles as the old pre-game delay.
-export const ORCHESTRATION_STEPS: OrchestrationStep[] = [
-  { kind: 'time', seconds: 6 },
-  { kind: 'event', zombies: [{ type: 'shambler', count: 3 }], seconds: 18 },
-  { kind: 'time', seconds: 8 },
-  { kind: 'event', zombies: [{ type: 'shambler', count: 4 }, { type: 'runner', count: 2 }], seconds: 20 },
-  { kind: 'time', seconds: 8 },
-  { kind: 'event', zombies: [{ type: 'shambler', count: 3 }, { type: 'runner', count: 5 }], seconds: 20 },
-];
-
 // Plant stamina: every peashooter shot / sunflower proc drains a bit of
 // stamina. At 0 the plant is "tired" and its rate (fire cooldown / sun
 // interval) is multiplied by TIRED_RATE_MULTIPLIER (i.e. dramatically

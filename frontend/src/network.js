@@ -256,7 +256,7 @@ function toFiniteNumber(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-export function connect({ roomId, playerId }) {
+export function connect({ roomId, playerId, difficulty }) {
   const activeSocket = createSocket();
   const normalizedRoomId = toStringId(roomId);
   const normalizedPlayerId = toStringId(playerId);
@@ -269,6 +269,7 @@ export function connect({ roomId, playerId }) {
     activeSocket.emit('join_room', {
       roomId: normalizedRoomId,
       playerId: normalizedPlayerId,
+      difficulty,
     });
   });
 
@@ -280,6 +281,7 @@ export function connect({ roomId, playerId }) {
   activeSocket.emit('join_room', {
     roomId: normalizedRoomId,
     playerId: normalizedPlayerId,
+    difficulty,
   });
   return activeSocket;
 }
@@ -305,7 +307,7 @@ export function connectDemo({ playerId }) {
   return activeSocket;
 }
 
-export function connectOnePlayer({ playerId }) {
+export function connectOnePlayer({ playerId, difficulty }) {
   const activeSocket = createSocket();
   const normalizedPlayerId = toStringId(playerId);
 
@@ -314,7 +316,7 @@ export function connectOnePlayer({ playerId }) {
   }
 
   activeSocket.once('connect', () => {
-    activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId });
+    activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId, difficulty });
   });
 
   if (!activeSocket.connected) {
@@ -322,7 +324,7 @@ export function connectOnePlayer({ playerId }) {
     return activeSocket;
   }
 
-  activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId });
+  activeSocket.emit('join_one_player_room', { playerId: normalizedPlayerId, difficulty });
   return activeSocket;
 }
 

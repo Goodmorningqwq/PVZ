@@ -2,8 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   BOARD_WIDTH,
   LAWN_BREACH_X,
-  ORCHESTRATION_STEPS,
-  OrchestrationStep,
   PLANT_DEFS,
   PLANT_MATTER_BUFF_COST_MULTIPLIER,
   PLANT_MATTER_BUFF_DURATION_TICKS,
@@ -21,6 +19,7 @@ import {
   ZOMBIE_SPAWN_X,
   LANE_COUNT,
 } from './config/gameConfig.js';
+import { ORCHESTRATION_STEPS_BY_DIFFICULTY, OrchestrationStep } from './config/orchestrationSteps.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
 import { RoomState, SlotState, SlotProjectileState, PlantType, WaveStatus, ZombieState, ZombieType } from './types.js';
 import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
@@ -111,19 +110,20 @@ export function broadcastState(room: RoomState) {
 // so the wire contract doesn't change even though RoomState no longer stores
 // wave fields directly.
 function computeWaveDisplay(room: RoomState): { wave: number; waveStatus: WaveStatus; totalWaves: number } {
-  const totalWaves = ORCHESTRATION_STEPS.filter((step) => step.kind === 'event').length;
+  const steps = ORCHESTRATION_STEPS_BY_DIFFICULTY[room.difficulty];
+  const totalWaves = steps.filter((step) => step.kind === 'event').length;
 
   let eventOrdinal = 0;
-  for (let index = 0; index <= room.orchestrationStepIndex && index < ORCHESTRATION_STEPS.length; index += 1) {
-    if (ORCHESTRATION_STEPS[index].kind === 'event') {
+  for (let index = 0; index <= room.orchestrationStepIndex && index < steps.length; index += 1) {
+    if (steps[index].kind === 'event') {
       eventOrdinal += 1;
     }
   }
 
   let waveStatus: WaveStatus;
-  if (room.orchestrationStepIndex >= ORCHESTRATION_STEPS.length) {
+  if (room.orchestrationStepIndex >= steps.length) {
     waveStatus = 'complete';
-  } else if (ORCHESTRATION_STEPS[room.orchestrationStepIndex].kind === 'event') {
+  } else if (steps[room.orchestrationStepIndex].kind === 'event') {
     waveStatus = 'spawning';
   } else if (eventOrdinal === 0) {
     waveStatus = 'pending';
@@ -166,26 +166,28 @@ export function stepDurationTicks(step: OrchestrationStep): number {
   return step.seconds * TICK_RATE;
 }
 
-// Walks ORCHESTRATION_STEPS sequentially: 'time' steps just pause, 'event'
-// steps spawn their zombie list spread evenly across the step's duration.
-// Replaces the old WAVES + advanceWaveState state machine — unlike that
-// machine, this is purely time-driven (an 'event' step doesn't wait for the
-// board to clear before the following 'time' step starts counting down).
-// Only reaching the end of the list still gates the win on the board being
-// clear.
+// Walks the room's difficulty-selected step list sequentially: 'time' steps
+// just pause, 'event' steps spawn their zombie list spread evenly across
+// the step's duration. Replaces the old WAVES + advanceWaveState state
+// machine — unlike that machine, this is purely time-driven (an 'event'
+// step doesn't wait for the board to clear before the following 'time' step
+// starts counting down). Only reaching the end of the list still gates the
+// win on the board being clear.
 export function advanceOrchestration(room: RoomState) {
   if (room.gameOver) {
     return;
   }
 
-  if (room.orchestrationStepIndex >= ORCHESTRATION_STEPS.length) {
+  const steps = ORCHESTRATION_STEPS_BY_DIFFICULTY[room.difficulty];
+
+  if (room.orchestrationStepIndex >= steps.length) {
     if (room.zombies.length === 0) {
       endGame(room, 'win');
     }
     return;
   }
 
-  const step = ORCHESTRATION_STEPS[room.orchestrationStepIndex];
+  const step = steps[room.orchestrationStepIndex];
 
   if (step.kind === 'time') {
     room.orchestrationStepTimer -= 1;
@@ -222,7 +224,7 @@ export function advanceOrchestration(room: RoomState) {
 function advanceToNextOrchestrationStep(room: RoomState) {
   room.orchestrationStepIndex += 1;
   room.orchestrationSpawnedInStep = 0;
-  const nextStep = ORCHESTRATION_STEPS[room.orchestrationStepIndex];
+  const nextStep = ORCHESTRATION_STEPS_BY_DIFFICULTY[room.difficulty][room.orchestrationStepIndex];
   // 'time' steps count down the full pause; 'event' steps start at 0 so the
   // first zombie spawns immediately rather than waiting a full step-duration.
   room.orchestrationStepTimer = nextStep && nextStep.kind === 'time' ? stepDurationTicks(nextStep) : 0;

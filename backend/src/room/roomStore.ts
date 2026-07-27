@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ORCHESTRATION_STEPS, SLOT_COUNT, SLOT_MARGIN, BOARD_HEIGHT, BOARD_WIDTH, LANE_COUNT, LANE_MARGIN, TICK_RATE } from '../game/config/gameConfig.js';
-import { RoomMode, RoomState, SlotState } from '../game/types.js';
+import { SLOT_COUNT, SLOT_MARGIN, BOARD_HEIGHT, BOARD_WIDTH, LANE_COUNT, LANE_MARGIN, TICK_RATE } from '../game/config/gameConfig.js';
+import { ORCHESTRATION_STEPS_BY_DIFFICULTY } from '../game/config/orchestrationSteps.js';
+import { RoomDifficulty, RoomMode, RoomState, SlotState } from '../game/types.js';
 
 const rooms = new Map<string, RoomState>();
 const socketToRoom = new Map<string, string>();
@@ -29,15 +30,18 @@ function buildSlots(): SlotState[] {
   return slots;
 }
 
-export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer'): RoomState {
+export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer', difficulty: RoomDifficulty = 'medium'): RoomState {
   const existingRoom = rooms.get(roomId);
   if (existingRoom) {
     return existingRoom;
   }
 
+  const firstStep = ORCHESTRATION_STEPS_BY_DIFFICULTY[difficulty][0];
+
   const createdRoom: RoomState = {
     roomId,
     mode,
+    difficulty,
     players: [],
     slots: buildSlots(),
     zombies: [],
@@ -52,7 +56,7 @@ export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer'): R
     // 'time' steps count down the full pause; 'event' steps start at 0 so the
     // first zombie spawns immediately (mirrors advanceToNextOrchestrationStep
     // in defaultGameEngine.ts).
-    orchestrationStepTimer: ORCHESTRATION_STEPS[0].kind === 'time' ? ORCHESTRATION_STEPS[0].seconds * TICK_RATE : 0,
+    orchestrationStepTimer: firstStep.kind === 'time' ? firstStep.seconds * TICK_RATE : 0,
     orchestrationSpawnedInStep: 0,
   };
 

@@ -45,6 +45,7 @@ function printRoom(roomId: string) {
     tick: room.tick,
     gameOver: room.gameOver,
     result: room.result,
+    difficulty: room.difficulty,
     orchestrationStepIndex: room.orchestrationStepIndex,
     orchestrationStepTimer: room.orchestrationStepTimer,
     orchestrationSpawnedInStep: room.orchestrationSpawnedInStep,

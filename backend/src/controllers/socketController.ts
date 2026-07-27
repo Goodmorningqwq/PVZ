@@ -3,7 +3,7 @@ import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine.js';
 import * as onePlayerGameEngine from '../game/onePlayerGameEngine.js';
 import * as demoGameEngine from '../game/demoGameEngine.js';
 import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore.js';
-import { PlantType } from '../game/types.js';
+import { PlantType, RoomDifficulty } from '../game/types.js';
 import { isValidPlantType } from '../game/plants/plantBehaviors.js';
 import { RoomEvents } from '../services/roomEvents.js';
 import { log } from '../utils/logger.js';
@@ -12,19 +12,26 @@ function sanitizeId(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+const VALID_DIFFICULTIES: RoomDifficulty[] = ['easy', 'medium', 'hard'];
+
+function sanitizeDifficulty(value: unknown): RoomDifficulty {
+  return VALID_DIFFICULTIES.includes(value as RoomDifficulty) ? (value as RoomDifficulty) : 'medium';
+}
+
 export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvents) {
   io.on('connection', (socket: Socket) => {
     log('INFO', `Player connected: ${socket.id}`);
 
-    socket.on('join_room', (data: { roomId?: string; playerId?: string }) => {
+    socket.on('join_room', (data: { roomId?: string; playerId?: string; difficulty?: string }) => {
       const roomId = sanitizeId(data?.roomId);
       const playerId = sanitizeId(data?.playerId);
+      const difficulty = sanitizeDifficulty(data?.difficulty);
 
       if (!roomId || !playerId) {
         return;
       }
 
-      const room = getOrCreateRoom(roomId);
+      const room = getOrCreateRoom(roomId, 'twoPlayer', difficulty);
       setSocketRoomId(socket.id, roomId);
       socket.join(roomId);
 
@@ -46,14 +53,15 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Player joined room ${roomId}: ${playerId}`);
     });
 
-    socket.on('join_one_player_room', (data: { playerId?: string }) => {
+    socket.on('join_one_player_room', (data: { playerId?: string; difficulty?: string }) => {
       const playerId = sanitizeId(data?.playerId);
       if (!playerId) {
         return;
       }
 
+      const difficulty = sanitizeDifficulty(data?.difficulty);
       const roomId = `oneplayer-${socket.id}`;
-      const room = getOrCreateRoom(roomId, 'onePlayer');
+      const room = getOrCreateRoom(roomId, 'onePlayer', difficulty);
       setSocketRoomId(socket.id, roomId);
       socket.join(roomId);
 
@@ -71,14 +79,15 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Player joined one-player room ${roomId}: ${playerId}`);
     });
 
-    socket.on('join_demo_room', (data: { playerId?: string }) => {
+    socket.on('join_demo_room', (data: { playerId?: string; difficulty?: string }) => {
       const playerId = sanitizeId(data?.playerId);
       if (!playerId) {
         return;
       }
 
+      const difficulty = sanitizeDifficulty(data?.difficulty);
       const roomId = `demo-${socket.id}`;
-      const room = getOrCreateRoom(roomId, 'demo');
+      const room = getOrCreateRoom(roomId, 'demo', difficulty);
       setSocketRoomId(socket.id, roomId);
       socket.join(roomId);
 

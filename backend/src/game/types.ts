@@ -8,6 +8,7 @@ export type SlotProjectileType = keyof typeof PROJECTILE_DEFS;
 // state in defaultGameEngine.ts (see computeWaveDisplay) — not stored on RoomState.
 export type WaveStatus = 'pending' | 'spawning' | 'break' | 'complete';
 export type RoomMode = 'twoPlayer' | 'onePlayer' | 'demo';
+export type RoomDifficulty = 'easy' | 'medium' | 'hard';
 export type PlantState = 'idle' | 'attack';
 
 export type PlayerState = {
@@ -81,6 +82,7 @@ export type PlantMatterPickupState = {
 export type RoomState = {
   roomId: string;
   mode: RoomMode;
+  difficulty: RoomDifficulty;
   players: PlayerState[];
   slots: SlotState[];
   zombies: ZombieState[];
