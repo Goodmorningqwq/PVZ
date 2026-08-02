@@ -1,9 +1,11 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { broadcastState } from '../game/defaultGameEngine.js';
-import { getRoom } from '../room/roomStore.js';
+import { getRoom, getRoomCapacity } from '../room/roomStore.js';
 
 export type RoomEvents = {
   emitRoomJoined: (roomId: string, playerId: string) => void;
+  emitRoomPlayersUpdate: (roomId: string) => void;
+  emitGameStarted: (roomId: string) => void;
   emitState: (roomId: string) => void;
   maybeEmitGameOver: (roomId: string) => void;
   clearGameOverAnnouncement: (roomId: string) => void;
@@ -29,6 +31,37 @@ export function createRoomEvents(io: SocketIOServer): RoomEvents {
       roomId: room.roomId,
       playerId,
       opponentId,
+      // Tells the client whether to jump straight into the match (a
+      // reconnect to an already-started room) or wait for start_game.
+      started: room.started,
+    });
+  }
+
+  // Broadcast once a player has clicked "Start Game" on a full, unstarted
+  // room — this is what moves both clients from the waiting room into the
+  // match (see gameLoop.ts / twoPlayerGameEngine.ts for the matching
+  // server-side tick gate).
+  function emitGameStarted(roomId: string) {
+    const room = getRoom(roomId);
+    if (!room) {
+      return;
+    }
+
+    io.to(roomId).emit('game_started', { roomId: room.roomId });
+  }
+
+  // Broadcast while a room is filling (and after, harmlessly) so the waiting
+  // room can show a live "X/capacity" count and the connected player ids.
+  function emitRoomPlayersUpdate(roomId: string) {
+    const room = getRoom(roomId);
+    if (!room) {
+      return;
+    }
+
+    io.to(roomId).emit('room_players_update', {
+      roomId: room.roomId,
+      players: room.players.map((player) => player.playerId),
+      capacity: getRoomCapacity(room.mode),
     });
   }
 
@@ -74,5 +107,13 @@ export function createRoomEvents(io: SocketIOServer): RoomEvents {
     io.to(socketId).emit('action_rejected', payload);
   }
 
-  return { emitRoomJoined, emitState, maybeEmitGameOver, clearGameOverAnnouncement, emitActionRejected };
+  return {
+    emitRoomJoined,
+    emitRoomPlayersUpdate,
+    emitGameStarted,
+    emitState,
+    maybeEmitGameOver,
+    clearGameOverAnnouncement,
+    emitActionRejected,
+  };
 }

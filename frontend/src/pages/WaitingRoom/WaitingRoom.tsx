@@ -5,9 +5,22 @@ type WaitingRoomProps = {
   statusText: string;
   isDemo?: boolean;
   isSolo?: boolean;
+  players?: string[];
+  capacity?: number;
+  canStart?: boolean;
+  onStartGame?: () => void;
 };
 
-export default function WaitingRoom({ roomId, statusText, isDemo, isSolo }: WaitingRoomProps) {
+export default function WaitingRoom({
+  roomId,
+  statusText,
+  isDemo,
+  isSolo,
+  players = [],
+  capacity = 2,
+  canStart = false,
+  onStartGame,
+}: WaitingRoomProps) {
   const [copied, setCopied] = useState(false);
 
   async function copyInviteLink() {
@@ -36,22 +49,41 @@ export default function WaitingRoom({ roomId, statusText, isDemo, isSolo }: Wait
           </>
         ) : (
           <>
-            <h1 className="menu-title">Waiting for opponent</h1>
-            <p className="menu-subtitle">Share this code to start</p>
+            <h1 className="menu-title">{canStart ? 'Room is full' : 'Waiting for opponent'}</h1>
+            <p className="menu-subtitle">{canStart ? 'Anyone can start the match' : 'Share this code to start'}</p>
 
             <div className="waiting-code">{roomId}</div>
 
-            <button className="menu-primary-button" type="button" onClick={copyInviteLink}>
-              {copied ? 'Link copied!' : 'Copy invite link'}
-            </button>
+            {canStart ? (
+              <button className="menu-primary-button" type="button" onClick={onStartGame}>
+                Start Game
+              </button>
+            ) : (
+              <button className="menu-primary-button" type="button" onClick={copyInviteLink}>
+                {copied ? 'Link copied!' : 'Copy invite link'}
+              </button>
+            )}
+
+            <p className="waiting-player-count">
+              Players in room: {players.length}/{capacity}
+            </p>
+            {players.length > 0 && (
+              <ul className="waiting-player-list">
+                {players.map((id) => (
+                  <li key={id}>{id}</li>
+                ))}
+              </ul>
+            )}
           </>
         )}
 
-        <div className="waiting-spinner" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        {!canStart && (
+          <div className="waiting-spinner" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
 
         <p className="waiting-status">{statusText}</p>
       </div>

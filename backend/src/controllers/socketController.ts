@@ -2,7 +2,17 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import * as twoPlayerGameEngine from '../game/twoPlayerGameEngine.js';
 import * as onePlayerGameEngine from '../game/onePlayerGameEngine.js';
 import * as demoGameEngine from '../game/demoGameEngine.js';
-import { getOrCreateRoom, getRoom, getSocketRoomId, hasTwoPlayers, removePlayerFromRooms, setSocketRoomId } from '../room/roomStore.js';
+import {
+  canPlayerJoinRoom,
+  getOrCreateRoom,
+  getRoom,
+  getRoomCapacity,
+  getSocketRoomId,
+  hasTwoPlayers,
+  registerOriginalPlayer,
+  removePlayerFromRooms,
+  setSocketRoomId,
+} from '../room/roomStore.js';
 import { PlantType, RoomDifficulty } from '../game/types.js';
 import { isValidPlantType } from '../game/plants/plantBehaviors.js';
 import { RoomEvents } from '../services/roomEvents.js';
@@ -32,6 +42,17 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       const room = getOrCreateRoom(roomId, 'twoPlayer', difficulty);
+
+      if (!canPlayerJoinRoom(room, playerId)) {
+        roomEvents.emitActionRejected(socket.id, {
+          action: 'join_room',
+          reason: room.started ? 'game_in_progress' : 'room_full',
+        });
+        log('INFO', `Rejected join to full room ${roomId}: ${playerId}`);
+        return;
+      }
+
+      registerOriginalPlayer(room, playerId);
       setSocketRoomId(socket.id, roomId);
       socket.join(roomId);
 
@@ -43,14 +64,44 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       twoPlayerGameEngine.initializePlayerSun(room, playerId);
+      roomEvents.emitRoomPlayersUpdate(roomId);
 
-      if (hasTwoPlayers(roomId)) {
+      if (room.started) {
+        // Reconnect to a match already underway — confirm just to this
+        // socket, regardless of whether the other original player is
+        // currently connected, so a solo reconnect isn't stuck waiting.
+        roomEvents.emitRoomJoined(roomId, playerId);
+        roomEvents.emitState(roomId);
+      } else if (hasTwoPlayers(roomId)) {
         roomEvents.emitRoomJoined(roomId, room.players[0].playerId);
         roomEvents.emitRoomJoined(roomId, room.players[1].playerId);
         roomEvents.emitState(roomId);
       }
 
       log('INFO', `Player joined room ${roomId}: ${playerId}`);
+    });
+
+    // Either original player may kick off the match once the room is full —
+    // there's no "host" concept, so this is deliberately not restricted to
+    // whoever created the room.
+    socket.on('start_game', (data: { roomId?: string; playerId?: string }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+
+      const room = getRoom(roomId);
+      if (!room || room.mode !== 'twoPlayer' || room.started) {
+        return;
+      }
+
+      const isInRoom = room.players.some((player) => player.playerId === playerId);
+      if (!isInRoom || room.players.length < getRoomCapacity(room.mode)) {
+        return;
+      }
+
+      room.started = true;
+      roomEvents.emitGameStarted(roomId);
+      roomEvents.emitState(roomId);
+      log('INFO', `Game started in room ${roomId} by ${playerId}`);
     });
 
     socket.on('join_one_player_room', (data: { playerId?: string; difficulty?: string }) => {
@@ -287,6 +338,8 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
 
       if (room.players.length === 0) {
         roomEvents.clearGameOverAnnouncement(roomId);
+      } else {
+        roomEvents.emitRoomPlayersUpdate(roomId);
       }
     });
   });

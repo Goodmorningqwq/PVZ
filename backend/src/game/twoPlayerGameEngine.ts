@@ -48,7 +48,9 @@ function runTwoPlayerGameTick(room: RoomState) {
 }
 
 export function advanceTwoPlayerRoom(room: RoomState) {
-  if (room.gameOver || room.players.length < 2) {
+  // Gated on the explicit started flag, not players (who's currently
+  // connected) — a mid-match disconnect must not pause the tick.
+  if (room.gameOver || !room.started) {
     return;
   }
 
@@ -58,7 +60,7 @@ export function advanceTwoPlayerRoom(room: RoomState) {
 export function advanceTwoPlayerRoomTicks(room: RoomState, ticks: number) {
   const totalTicks = Math.max(0, Math.floor(ticks));
   for (let index = 0; index < totalTicks; index += 1) {
-    if (room.gameOver || room.players.length < 2) {
+    if (room.gameOver || !room.started) {
       return;
     }
 

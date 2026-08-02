@@ -6,6 +6,12 @@ import { RoomDifficulty, RoomMode, RoomState, SlotState } from '../game/types.js
 const rooms = new Map<string, RoomState>();
 const socketToRoom = new Map<string, string>();
 
+const ROOM_CAPACITY: Record<RoomMode, number> = {
+  twoPlayer: 2,
+  onePlayer: 1,
+  demo: 1,
+};
+
 function getLaneY(laneIndex: number): number {
   const laneSpacing = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
   return Math.round(LANE_MARGIN + laneSpacing * laneIndex);
@@ -43,6 +49,8 @@ export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer', di
     mode,
     difficulty,
     players: [],
+    originalPlayerIds: [],
+    started: false,
     slots: buildSlots(),
     zombies: [],
     projectiles: [],
@@ -129,6 +137,23 @@ export function addPlayer(roomId: string, playerId: string, socketId: string) {
 
 export function hasTwoPlayers(roomId: string) {
   return (rooms.get(roomId)?.players.length ?? 0) === 2;
+}
+
+export function getRoomCapacity(mode: RoomMode) {
+  return ROOM_CAPACITY[mode];
+}
+
+// Once a room has admitted as many distinct player ids as its capacity, it's
+// locked: those same ids may leave and rejoin, but no new id can take a seat
+// — even one freed up by a disconnect.
+export function canPlayerJoinRoom(room: RoomState, playerId: string) {
+  return room.originalPlayerIds.includes(playerId) || room.originalPlayerIds.length < ROOM_CAPACITY[room.mode];
+}
+
+export function registerOriginalPlayer(room: RoomState, playerId: string) {
+  if (!room.originalPlayerIds.includes(playerId)) {
+    room.originalPlayerIds.push(playerId);
+  }
 }
 
 export function createJoinPayload(room: RoomState, playerId: string) {

@@ -853,6 +853,26 @@
   color: #a9b39e;
 }
 
+.waiting-player-count {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #cdd8c1;
+}
+
+.waiting-player-list {
+  margin: 8px 0 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: #a9b39e;
+  text-align: center;
+}
+
+.waiting-player-list li {
+  padding: 2px 0;
+  word-break: break-all;
+}
+
 /* Game Over overlay — reuses .menu-backdrop / .menu-card but sits absolutely
    over the game canvas instead of taking the full page. */
 

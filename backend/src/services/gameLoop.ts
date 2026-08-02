@@ -7,8 +7,15 @@ import { RoomEvents } from './roomEvents.js';
 export function startGameLoop(tickRate: number, roomEvents: RoomEvents) {
   return setInterval(() => {
     for (const [roomId, room] of getRooms().entries()) {
-      const minPlayers = room.mode === 'twoPlayer' ? 2 : 1;
-      if (room.gameOver || room.players.length < minPlayers) {
+      // Two-player rooms tick once a player has explicitly started the
+      // match (see start_game in socketController.ts), and keep ticking
+      // even if one player later disconnects — the match isn't paused by a
+      // dropout, only by never having been started.
+      const isReady = room.mode === 'twoPlayer'
+        ? room.started
+        : room.players.length >= 1;
+
+      if (room.gameOver || !isReady) {
         continue;
       }
 

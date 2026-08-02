@@ -84,6 +84,15 @@ export type RoomState = {
   mode: RoomMode;
   difficulty: RoomDifficulty;
   players: PlayerState[];
+  // Player ids ever admitted into this room, capped at the mode's capacity
+  // and never removed on disconnect — this is what "locks" the room once
+  // full, so a departed original player can still rejoin but a third
+  // distinct id cannot take the empty seat.
+  originalPlayerIds: string[];
+  // twoPlayer rooms wait for an explicit start_game once full, rather than
+  // auto-starting — this flag flips once and never resets, so a mid-match
+  // disconnect can't re-pause the room (see gameLoop.ts / twoPlayerGameEngine.ts).
+  started: boolean;
   slots: SlotState[];
   zombies: ZombieState[];
   projectiles: SlotProjectileState[];

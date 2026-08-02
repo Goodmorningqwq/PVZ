@@ -18,6 +18,8 @@ let latestState = {
 };
 
 const roomJoinedListeners = new Set();
+const roomPlayersUpdateListeners = new Set();
+const gameStartedListeners = new Set();
 const stateUpdateListeners = new Set();
 const gameOverListeners = new Set();
 const actionRejectedListeners = new Set();
@@ -34,6 +36,14 @@ function createSocket() {
 
   socket.on('room_joined', (payload) => {
     roomJoinedListeners.forEach((listener) => listener(payload));
+  });
+
+  socket.on('room_players_update', (payload) => {
+    roomPlayersUpdateListeners.forEach((listener) => listener(payload));
+  });
+
+  socket.on('game_started', (payload) => {
+    gameStartedListeners.forEach((listener) => listener(payload));
   });
 
   socket.on('state_update', (payload) => {
@@ -328,6 +338,24 @@ export function connectOnePlayer({ playerId, difficulty }) {
   return activeSocket;
 }
 
+export function emitStartGame({ roomId, playerId }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+
+  if (!normalizedRoomId || !normalizedPlayerId) {
+    return;
+  }
+
+  socket.emit('start_game', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+  });
+}
+
 export function emitPlacePlant({ roomId, playerId, plant, slotIndex }) {
   if (!socket) {
     return;
@@ -443,6 +471,16 @@ export function emitUseMatterOnPlant({ roomId, playerId, slotIndex }) {
 export function onRoomJoined(listener) {
   roomJoinedListeners.add(listener);
   return () => roomJoinedListeners.delete(listener);
+}
+
+export function onRoomPlayersUpdate(listener) {
+  roomPlayersUpdateListeners.add(listener);
+  return () => roomPlayersUpdateListeners.delete(listener);
+}
+
+export function onGameStarted(listener) {
+  gameStartedListeners.add(listener);
+  return () => gameStartedListeners.delete(listener);
 }
 
 export function onStateUpdate(listener) {

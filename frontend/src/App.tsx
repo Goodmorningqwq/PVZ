@@ -1,8 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { connect, connectDemo, connectOnePlayer, disconnect, onRoomJoined } from './network';
+import {
+  connect,
+  connectDemo,
+  connectOnePlayer,
+  disconnect,
+  emitStartGame,
+  onActionRejected,
+  onGameStarted,
+  onRoomJoined,
+  onRoomPlayersUpdate,
+} from './network';
 import ModeSelect from './pages/ModeSelect/ModeSelect';
 import GameSettings, { Difficulty } from './pages/GameSettings/GameSettings';
 import WaitingRoom from './pages/WaitingRoom/WaitingRoom';
+import GameInProgress from './pages/WaitingRoom/GameInProgress';
 import Game from './pages/Game/Game';
 import './App.css';
 
@@ -55,6 +66,9 @@ export default function App() {
   // demo/solo rooms where the server assigns a fresh id per connection.
   const [activeRoomId, setActiveRoomId] = useState(() => getSearchParam('room'));
   const [confirmedRoomId, setConfirmedRoomId] = useState('');
+  const [waitingPlayers, setWaitingPlayers] = useState<string[]>([]);
+  const [waitingCapacity, setWaitingCapacity] = useState(2);
+  const [roomInProgress, setRoomInProgress] = useState(false);
   const [selectedMode, setSelectedMode] = useState<SelectedMode>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     const raw = getSearchParam('difficulty');
@@ -72,6 +86,10 @@ export default function App() {
 
   function backToModeSelect() {
     setPhase('mode-select');
+  }
+
+  function handleStartGame() {
+    emitStartGame({ roomId: confirmedRoomId || activeRoomId, playerId });
   }
 
   function startMultiplayer(roomId: string, chosenDifficulty: Difficulty) {
@@ -123,13 +141,51 @@ export default function App() {
       const joinedRoomId = payload?.roomId ? String(payload.roomId) : activeRoomId;
 
       setConfirmedRoomId(joinedRoomId);
+      setConnected(true);
+
+      // Demo/solo rooms only ever hold one player, so joining means playing.
+      // A twoPlayer room only jumps straight in here if it was already
+      // started — i.e. this is a reconnect to a match in progress, not the
+      // first time the room filled up (that case waits for start_game).
+      if (demoMode || onePlayerMode || payload?.started) {
+        setSocketStatus('Room joined');
+        setPhase('playing');
+      } else {
+        setSocketStatus('Room full');
+      }
+    });
+
+    const offGameStarted = onGameStarted(() => {
       setSocketStatus('Room joined');
       setConnected(true);
       setPhase('playing');
     });
 
+    const offRoomPlayersUpdate = onRoomPlayersUpdate((payload) => {
+      const players = Array.isArray(payload?.players) ? payload.players.map(String) : [];
+      setWaitingPlayers(players);
+      if (Number.isFinite(payload?.capacity)) {
+        setWaitingCapacity(payload.capacity);
+      }
+    });
+
+    const offActionRejected = onActionRejected((payload) => {
+      if (payload?.action !== 'join_room') {
+        return;
+      }
+      if (payload?.reason === 'game_in_progress') {
+        setRoomInProgress(true);
+        setSocketStatus('Game in progress');
+      } else if (payload?.reason === 'room_full') {
+        setSocketStatus('Room is full');
+      }
+    });
+
     return () => {
       offRoomJoined();
+      offGameStarted();
+      offRoomPlayersUpdate();
+      offActionRejected();
       disconnect();
     };
     // Deliberately depends on isPreConnectPhase rather than `phase` itself:
@@ -153,7 +209,24 @@ export default function App() {
   }
 
   if (phase === 'waiting') {
-    return <WaitingRoom roomId={activeRoomId} statusText={socketStatus} isDemo={demoMode} isSolo={onePlayerMode} />;
+    if (roomInProgress) {
+      return <GameInProgress roomId={activeRoomId} />;
+    }
+
+    const canStart = !demoMode && !onePlayerMode && waitingCapacity > 0 && waitingPlayers.length >= waitingCapacity;
+
+    return (
+      <WaitingRoom
+        roomId={activeRoomId}
+        statusText={socketStatus}
+        isDemo={demoMode}
+        isSolo={onePlayerMode}
+        players={waitingPlayers}
+        capacity={waitingCapacity}
+        canStart={canStart}
+        onStartGame={handleStartGame}
+      />
+    );
   }
 
   return (
