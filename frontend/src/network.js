@@ -7,6 +7,8 @@ let latestState = {
   plantMatter: 0,
   slots: [],
   projectiles: [],
+  birdProjectiles: [],
+  slingshotCooldown: 0,
   sunPickups: [],
   plantMatterPickups: [],
   zombies: [],
@@ -68,6 +70,8 @@ function normalizeState(payload) {
     plantMatter: Number.isFinite(payload?.plantMatter) ? payload.plantMatter : 0,
     slots: normalizeSlots(payload?.slots),
     projectiles: normalizeProjectiles(payload?.projectiles),
+    birdProjectiles: normalizeBirdProjectiles(payload?.birdProjectiles),
+    slingshotCooldown: Number.isFinite(payload?.slingshotCooldown) ? payload.slingshotCooldown : 0,
     sunPickups: normalizeSunPickups(payload?.sunPickups),
     plantMatterPickups: normalizePlantMatterPickups(payload?.plantMatterPickups),
     zombies: normalizeEntities(payload?.zombies),
@@ -167,6 +171,29 @@ function normalizeProjectiles(projectiles) {
       && Number.isFinite(projectile.speed)
       && projectile.projectileType,
     );
+}
+
+function normalizeBirdProjectiles(birdProjectiles) {
+  if (!Array.isArray(birdProjectiles)) {
+    return [];
+  }
+
+  return birdProjectiles
+    .map((bird) => {
+      if (!bird || typeof bird !== 'object') {
+        return null;
+      }
+
+      return {
+        id: String(bird.id ?? ''),
+        x: Number(bird.x),
+        y: Number(bird.y),
+        z: Number.isFinite(bird.z) ? bird.z : 0,
+        ownerId: String(bird.ownerId ?? ''),
+        damage: Number(bird.damage),
+      };
+    })
+    .filter((bird) => bird && bird.id && Number.isFinite(bird.x) && Number.isFinite(bird.y));
 }
 
 function normalizeSunPickups(sunPickups) {
@@ -465,6 +492,32 @@ export function emitUseMatterOnPlant({ roomId, playerId, slotIndex }) {
     roomId: normalizedRoomId,
     playerId: normalizedPlayerId,
     slotIndex: normalizedSlotIndex,
+  });
+}
+
+// Slingshot fire. dx/dy is the raw pull vector (pointer minus the slingshot
+// anchor, in board units) - the server redoes the clamp/mirror/snap-to-slot
+// math itself (see fireSlingshot in defaultGameEngine.ts) rather than
+// trusting a client-supplied target.
+export function emitFireSlingshot({ roomId, playerId, dx, dy }) {
+  if (!socket) {
+    return;
+  }
+
+  const normalizedRoomId = toStringId(roomId);
+  const normalizedPlayerId = toStringId(playerId);
+  const normalizedDx = toFiniteNumber(dx);
+  const normalizedDy = toFiniteNumber(dy);
+
+  if (!normalizedRoomId || !normalizedPlayerId || normalizedDx === null || normalizedDy === null) {
+    return;
+  }
+
+  socket.emit('fire_slingshot', {
+    roomId: normalizedRoomId,
+    playerId: normalizedPlayerId,
+    dx: normalizedDx,
+    dy: normalizedDy,
   });
 }
 

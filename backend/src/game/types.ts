@@ -43,6 +43,29 @@ export type SlotProjectileState = {
   ownerId: string;
 };
 
+// The slingshot's bird: unlike SlotProjectileState (lane-locked, straight
+// line), this flies a fixed-endpoint parabolic lob across arbitrary
+// board-plane coordinates. x/y/z are derived each tick from start/target/
+// startTick/durationTicks/zMax (see computeBirdPosition in
+// defaultGameEngine.ts) and cached on the object purely so broadcastState has
+// something to read without recomputing — startTick/durationTicks/zMax remain
+// the source of truth.
+export type BirdProjectileState = {
+  id: string;
+  ownerId: string;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  startTick: number;
+  durationTicks: number;
+  zMax: number;
+  damage: number;
+  splashRadius: number;
+  x: number;
+  y: number;
+};
+
 export type SlotState = {
   index: number;
   laneIndex: number;
@@ -96,6 +119,11 @@ export type RoomState = {
   slots: SlotState[];
   zombies: ZombieState[];
   projectiles: SlotProjectileState[];
+  birdProjectiles: BirdProjectileState[];
+  // Ticks remaining before the slingshot can fire again. Shared across both
+  // players (co-op, one physical fixture on the board), same as
+  // plantMatter — not a per-player resource like sun.
+  slingshotCooldown: number;
   sunPickups: SunPickupState[];
   plantMatterPickups: PlantMatterPickupState[];
   sun: Record<string, number>;

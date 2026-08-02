@@ -1,15 +1,18 @@
 import { PlantType, RoomState } from './types.js';
 import {
+  advanceBirdProjectiles,
   advanceOrchestration,
   advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
+  advanceSlingshotCooldown,
   advanceSunPickups,
   broadcastState,
   checkLawnBreach,
   collectPlantMatterPickup as collectPlantMatterPickupCommon,
   collectSunPickup as collectSunPickupCommon,
   endGame,
+  fireSlingshot,
   forceGameOver,
   placePlant as placePlantCommon,
   removePlant as removePlantCommon,
@@ -17,7 +20,7 @@ import {
   useMatterOnPlant as useMatterOnPlantCommon,
 } from './defaultGameEngine.js';
 
-export { broadcastState, endGame, forceGameOver, spawnZombieInLane };
+export { broadcastState, endGame, fireSlingshot, forceGameOver, spawnZombieInLane };
 
 const DEMO_SUN = 999999;
 const DEMO_PLANT_MATTER = 999999;
@@ -29,6 +32,8 @@ function runDemoRoomTick(room: RoomState) {
   advanceSunPickups(room);
   advancePlantMatterPickups(room);
   advanceProjectiles(room);
+  advanceSlingshotCooldown(room);
+  advanceBirdProjectiles(room);
   // Zombies stand still in the demo room, so there is no zombie-movement step here.
   checkLawnBreach(room);
   // Demo mode never runs dry - always top off the shared plant matter pool

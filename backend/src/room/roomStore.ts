@@ -54,6 +54,8 @@ export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer', di
     slots: buildSlots(),
     zombies: [],
     projectiles: [],
+    birdProjectiles: [],
+    slingshotCooldown: 0,
     sunPickups: [],
     plantMatterPickups: [],
     sun: {},

@@ -54,12 +54,15 @@ const ACTION_REJECTED_MESSAGES: Record<string, string> = {
   insufficient_plant_matter: 'Not enough plant matter for that yet.',
   no_plant_in_slot: 'Nothing to dig up there.',
   invalid_slot: "That's not a slot.",
+  on_cooldown: "Slingshot's still reloading.",
 };
 
 // Actions that surface a toast when the server rejects them. Everything else
 // still fails silently, per the convention documented in
-// NETWORKING_CONTRACT_REVISED.md.
-const TOASTED_ACTIONS = new Set(['use_plant_matter', 'remove_plant']);
+// NETWORKING_CONTRACT_REVISED.md. fire_slingshot's other rejection
+// (pull_too_small) never reaches the server at all - GameScene only emits
+// once the drag clears the arm threshold client-side.
+const TOASTED_ACTIONS = new Set(['use_plant_matter', 'remove_plant', 'fire_slingshot']);
 
 function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
   if (waveStatus === 'pending') return 'Get ready...';
@@ -331,7 +334,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           <div className="hud-hint">
             {shovelActive
               ? 'Shovel armed — click a plant to dig it up for a partial refund.'
-              : 'Pick a plant above, then click an open slot to place it.'}
+              : 'Pick a plant above, then click an open slot to place it. Drag the bird on the slingshot and release to fire.'}
           </div>
 
           {actionToast && <div className="action-toast">{actionToast}</div>}

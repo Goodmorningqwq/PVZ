@@ -1,0 +1,36 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Slingshot fixture for the left edge of the lawn (row 3). Drawn as a
+       sideways fork - handle at the lower-left, two prongs opening to the
+       right - so it visually reads as "facing" into the board, matching the
+       fire-rightward aiming rule in fireSlingshot (defaultGameEngine.ts). -->
+  <defs>
+    <linearGradient id="slingshotWood" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b98a52" />
+      <stop offset="100%" stop-color="#7a5230" />
+    </linearGradient>
+  </defs>
+
+  <!-- Handle -->
+  <rect x="14" y="40" width="9" height="20" rx="4"
+        transform="rotate(-28 18.5 50)"
+        fill="url(#slingshotWood)" stroke="#4f3620" stroke-width="2" />
+
+  <!-- Upper prong -->
+  <path d="M26 36 Q30 22 48 10" fill="none"
+        stroke="url(#slingshotWood)" stroke-width="8" stroke-linecap="round" />
+  <path d="M26 36 Q30 22 48 10" fill="none"
+        stroke="#4f3620" stroke-width="9" stroke-linecap="round" opacity="0.25" />
+
+  <!-- Lower prong -->
+  <path d="M26 36 Q30 46 48 54" fill="none"
+        stroke="url(#slingshotWood)" stroke-width="8" stroke-linecap="round" />
+  <path d="M26 36 Q30 46 48 54" fill="none"
+        stroke="#4f3620" stroke-width="9" stroke-linecap="round" opacity="0.25" />
+
+  <!-- Fork joint -->
+  <circle cx="26" cy="36" r="7" fill="url(#slingshotWood)" stroke="#4f3620" stroke-width="2" />
+
+  <!-- Prong tips -->
+  <circle cx="48" cy="10" r="4.5" fill="#5f4229" />
+  <circle cx="48" cy="54" r="4.5" fill="#5f4229" />
+</svg>

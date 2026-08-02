@@ -323,6 +323,45 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       log('INFO', `Plant matter used in room ${roomId}: ${playerId} ${result.action} slot ${slotIndex}`);
     });
 
+    // Slingshot fire. dx/dy is the raw pull vector the client dragged (pointer
+    // minus the slingshot anchor) - the server redoes the same clamp/mirror/
+    // snap-to-slot math the client used for its live trajectory preview
+    // (see fireSlingshot in defaultGameEngine.ts) rather than trusting a
+    // client-supplied target, so an aim can't be spoofed out of range.
+    // Rejected with an explicit action_rejected (cooldown / pull too small)
+    // rather than silently, matching remove_plant/use_plant_matter.
+    socket.on('fire_slingshot', (data: { roomId?: string; playerId?: string; dx?: number; dy?: number }) => {
+      const roomId = sanitizeId(data?.roomId);
+      const playerId = sanitizeId(data?.playerId);
+      const dx = Number(data?.dx);
+      const dy = Number(data?.dy);
+
+      const room = getRoom(roomId);
+      if (!room || room.gameOver) {
+        return;
+      }
+
+      let result: { success: boolean; message?: string };
+      if (room.mode === 'demo') {
+        result = demoGameEngine.fireSlingshot(room, playerId, dx, dy);
+      } else if (room.mode === 'onePlayer') {
+        result = onePlayerGameEngine.fireSlingshot(room, playerId, dx, dy);
+      } else {
+        result = twoPlayerGameEngine.fireSlingshot(room, playerId, dx, dy);
+      }
+
+      if (!result.success) {
+        roomEvents.emitActionRejected(socket.id, {
+          action: 'fire_slingshot',
+          reason: result.message || 'rejected',
+        });
+        return;
+      }
+
+      roomEvents.emitState(roomId);
+      log('INFO', `Slingshot fired in room ${roomId}: ${playerId}`);
+    });
+
     socket.on('disconnect', () => {
       log('INFO', `Player disconnected: ${socket.id}`);
 

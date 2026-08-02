@@ -1,9 +1,11 @@
 import { RoomState } from './types.js';
 import {
+  advanceBirdProjectiles,
   advanceOrchestration,
   advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
+  advanceSlingshotCooldown,
   advanceSunPickups,
   advanceZombiesNormally,
   broadcastState,
@@ -11,6 +13,7 @@ import {
   collectPlantMatterPickup,
   collectSunPickup,
   endGame,
+  fireSlingshot,
   forceGameOver,
   initializePlayerSun,
   placePlant,
@@ -26,6 +29,7 @@ export {
   collectPlantMatterPickup,
   collectSunPickup,
   endGame,
+  fireSlingshot,
   forceGameOver,
   initializePlayerSun,
   placePlant,
@@ -43,6 +47,8 @@ function runOnePlayerGameTick(room: RoomState) {
   advanceSunPickups(room);
   advancePlantMatterPickups(room);
   advanceProjectiles(room);
+  advanceSlingshotCooldown(room);
+  advanceBirdProjectiles(room);
   advanceZombiesNormally(room);
   checkLawnBreach(room);
 }

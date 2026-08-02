@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { emitCollectPlantMatter, emitCollectSun, emitPlacePlant, emitRemovePlant, getLatestState } from '../../../network';
+import { emitCollectPlantMatter, emitCollectSun, emitFireSlingshot, emitPlacePlant, emitRemovePlant, getLatestState } from '../../../network';
 import gameBackgroundUrl from '../../../assets/gameBackground.png';
 import {
   LANE_COLOR,
@@ -7,6 +7,9 @@ import {
   LANE_COUNT,
   LANE_SPACING,
   PLANT_MATTER_PICKUP_RADIUS,
+  SLINGSHOT_GRAB_RADIUS,
+  SLINGSHOT_X,
+  SLINGSHOT_Y,
   SLOT_MARGIN,
   SLOT_MARKER_COLOR,
   SLOT_RADIUS,
@@ -14,7 +17,8 @@ import {
   getLaneY,
   getSlotPositions,
 } from './constants';
-import { PlantMatterRenderer, PlantRenderer, ProjectileRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
+import { PlantMatterRenderer, PlantRenderer, ProjectileRenderer, SlingshotRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
+import { clampPull, computeRawTarget, isPullArmed } from './slingshotMath';
 import { normalizeSun, toStringId } from './utils';
 
 const SLOT_POSITIONS = getSlotPositions();
@@ -37,6 +41,9 @@ export default class GameScene extends Phaser.Scene {
     this.latestPlantMatterPickups = [];
     // Same anti-spam guard as requestedSunIds, for plant matter pickups.
     this.requestedMatterIds = new Set();
+    // Set while the player is dragging the slingshot bird; see
+    // tryStartSlingshotDrag/updateSlingshotDragFromWorld/handleWindowPointerUp.
+    this.slingshotDrag = null;
   }
 
   preload() {
@@ -52,6 +59,7 @@ export default class GameScene extends Phaser.Scene {
     this.sunRenderer = new SunRenderer(this);
     this.plantMatterRenderer = new PlantMatterRenderer(this);
     this.zombieRenderer = new ZombieRenderer(this);
+    this.slingshotRenderer = new SlingshotRenderer(this);
 
     this.cameras.main.setBackgroundColor('#2f4a2a');
     this.backgroundImage = this.add.image(0, 0, 'gameBackground').setOrigin(0, 0);
@@ -61,10 +69,26 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawBackground();
     this.drawSlotMarkers();
+    this.slingshotRenderer.renderFork();
+    this.slingshotRenderer.renderRestingBird(true, false);
     this.input.on('pointerdown', this.handlePointerDown, this);
     // Hover collection (desktop/mouse). Tap collection for touch devices —
     // which have no hover concept — is handled in handlePointerDown below.
     this.input.on('pointermove', this.handlePointerMove, this);
+
+    // Slingshot drag continuation/release deliberately does NOT use Phaser's
+    // own pointermove/pointerup (see tryStartSlingshotDrag/handleWindowPointerUp):
+    // Phaser's MouseManager listens for legacy 'mousemove'/'mouseup' on the
+    // canvas element only, so once the real cursor leaves the canvas - which
+    // it must, to pull the bird back at all, given the anchor sits close to
+    // the board's left edge - the canvas stops receiving them and
+    // pointer.worldX/Y just freezes at the boundary. window-level listeners
+    // (bound only while a drag is active) get the real, even off-canvas
+    // position instead, converted via game.scale.transformX/Y - the same
+    // technique Game.tsx's handleMatterDrop already uses for PlantMatterBar's
+    // drag-from-outside-the-canvas gesture.
+    this.boundHandleWindowPointerMove = this.handleWindowPointerMove.bind(this);
+    this.boundHandleWindowPointerUp = this.handleWindowPointerUp.bind(this);
   }
 
   update() {
@@ -85,6 +109,15 @@ export default class GameScene extends Phaser.Scene {
     this.lastRenderedTick = tick;
     this.latestSlots = slots;
     const projectiles = Array.isArray(latestState?.projectiles) ? latestState.projectiles : [];
+    const birdProjectiles = Array.isArray(latestState?.birdProjectiles) ? latestState.birdProjectiles : [];
+    const slingshotCooldown = Number.isFinite(latestState?.slingshotCooldown) ? latestState.slingshotCooldown : 0;
+    this.latestSlingshotCooldown = slingshotCooldown;
+    // Don't fight the pulled-bird visual while a drag is actively in
+    // progress - the resting sprite is hidden for the duration anyway (see
+    // SlingshotRenderer.updateDrag/renderRestingBird).
+    if (!this.slingshotDrag) {
+      this.slingshotRenderer.renderRestingBird(slingshotCooldown <= 0, false);
+    }
     const sunPickups = Array.isArray(latestState?.sunPickups) ? latestState.sunPickups : [];
     this.latestSunPickups = sunPickups;
     const plantMatterPickups = Array.isArray(latestState?.plantMatterPickups) ? latestState.plantMatterPickups : [];
@@ -144,6 +177,12 @@ export default class GameScene extends Phaser.Scene {
       projectiles,
       (entity) => this.projectileRenderer.renderProjectile(entity, 1),
       (id) => this.projectileRenderer.cleanup(id),
+    );
+    this.syncSprites(
+      this.activeBirdProjectiles || (this.activeBirdProjectiles = new Map()),
+      birdProjectiles,
+      (entity) => this.slingshotRenderer.renderBird(entity),
+      (id) => this.slingshotRenderer.cleanup(id),
     );
     this.syncSprites(
       this.activeZombies,
@@ -253,12 +292,106 @@ export default class GameScene extends Phaser.Scene {
     return true;
   }
 
+  // Grabs the resting bird if the pointer went down within range of it and
+  // the slingshot is off cooldown. Takes priority over every other
+  // pointerdown behavior (sun/matter collection, shovel, plant placement) -
+  // it's a deliberate, spatially-isolated gesture on the far left edge where
+  // nothing else lives. Returns true if a drag was started.
+  tryStartSlingshotDrag(pointer) {
+    if (this.slingshotDrag || (this.latestSlingshotCooldown ?? 0) > 0) {
+      return false;
+    }
+
+    const dx = pointer.worldX - SLINGSHOT_X;
+    const dy = pointer.worldY - SLINGSHOT_Y;
+    if (Math.sqrt(dx * dx + dy * dy) > SLINGSHOT_GRAB_RADIUS) {
+      return false;
+    }
+
+    this.slingshotDrag = { pull: { x: 0, y: 0 } };
+    this.updateSlingshotDragFromWorld(pointer.worldX, pointer.worldY);
+    // See the comment above these listeners' declaration in create() - Phaser
+    // itself can't track this drag once it leaves the canvas.
+    window.addEventListener('pointermove', this.boundHandleWindowPointerMove);
+    window.addEventListener('pointerup', this.boundHandleWindowPointerUp);
+    return true;
+  }
+
+  // Redraws the pulled-back bird, rubber band, trajectory preview, and
+  // target-slot highlight for the current world position. The pull vector
+  // computed here (clamped, mirrored, snapped to a slot via slingshotMath.js)
+  // is exactly what handleWindowPointerUp sends to the server on release, so
+  // the preview never lies about where the shot will land.
+  updateSlingshotDragFromWorld(worldX, worldY) {
+    const pull = clampPull(worldX - SLINGSHOT_X, worldY - SLINGSHOT_Y);
+    const armed = isPullArmed(pull);
+    const target = computeRawTarget(pull);
+
+    this.slingshotDrag.pull = pull;
+    this.slingshotRenderer.updateDrag(SLINGSHOT_X + pull.x, SLINGSHOT_Y + pull.y, target, armed);
+  }
+
+  handleWindowPointerMove(event) {
+    if (!this.slingshotDrag) {
+      return;
+    }
+    const worldX = this.scale.transformX(event.pageX);
+    const worldY = this.scale.transformY(event.pageY);
+    this.updateSlingshotDragFromWorld(worldX, worldY);
+  }
+
+  handleWindowPointerUp() {
+    if (!this.slingshotDrag) {
+      return;
+    }
+
+    window.removeEventListener('pointermove', this.boundHandleWindowPointerMove);
+    window.removeEventListener('pointerup', this.boundHandleWindowPointerUp);
+
+    const { pull } = this.slingshotDrag;
+    const armed = isPullArmed(pull);
+    this.slingshotDrag = null;
+    this.slingshotRenderer.clearDrag();
+    // Optimistically show "reloading" immediately on a fired shot rather
+    // than waiting ~50ms for the next state_update to confirm the cooldown
+    // - avoids a one-frame flash of the bird looking grabbable again.
+    this.slingshotRenderer.renderRestingBird(!armed, false);
+
+    if (!armed) {
+      return;
+    }
+
+    const roomId = this.registry.get('roomId');
+    const playerId = this.registry.get('playerId');
+    if (!roomId || !playerId) {
+      return;
+    }
+
+    emitFireSlingshot({
+      roomId: toStringId(roomId),
+      playerId: toStringId(playerId),
+      dx: pull.x,
+      dy: pull.y,
+    });
+  }
+
   handlePointerMove(pointer) {
+    // Slingshot drags are tracked via window-level listeners instead (see
+    // tryStartSlingshotDrag) - while one is active, skip hover collection so
+    // it doesn't fire for whatever the pulled-back pointer happens to cross.
+    if (this.slingshotDrag) {
+      return;
+    }
+
     this.tryCollectSunNear(pointer.worldX, pointer.worldY);
     this.tryCollectMatterNear(pointer.worldX, pointer.worldY);
   }
 
   handlePointerDown(pointer) {
+    if (this.tryStartSlingshotDrag(pointer)) {
+      return;
+    }
+
     // Tap-to-collect for touch devices (no hover event ever fires there).
     // On desktop this is usually a no-op since hover already requested the
     // pickup the moment the cursor entered range, but it's a harmless second

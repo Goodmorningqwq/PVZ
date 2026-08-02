@@ -89,3 +89,29 @@ export function getSlotPositions() {
   }
   return positions;
 }
+
+// --- Slingshot (must match backend/src/game/config/slingshotConfig.ts) ----
+export const SLINGSHOT_LANE_INDEX = 2; // row 3
+export const SLINGSHOT_X = 28;
+export const SLINGSHOT_Y = getLaneY(SLINGSHOT_LANE_INDEX);
+export const SLINGSHOT_MAX_PULL = 140;
+export const SLINGSHOT_MIN_PULL_X = 18;
+// rawTarget = anchor - pull * RANGE_MULTIPLIER. Tuned so MAX_PULL reaches the
+// far column/row from the anchor with room to spare. Dragging past the
+// canvas's left edge still works because the drag captures the pointer (see
+// tryStartSlingshotDrag in GameScene.js).
+export const SLINGSHOT_RANGE_MULTIPLIER = 6;
+// Same distance->duration/height scaling the server uses, so the client's
+// live trajectory preview while dragging matches the real flight exactly.
+export const SLINGSHOT_BASE_FLIGHT_TICKS = 14;
+export const SLINGSHOT_FLIGHT_TICKS_PER_100PX = 6;
+export const SLINGSHOT_ZMAX_BASE = 40;
+export const SLINGSHOT_ZMAX_PER_100PX = 20;
+export const SLINGSHOT_TICK_RATE = 20; // must match backend TICK_RATE default
+
+export const BIRD_RADIUS = 14;
+export const BIRD_COLOR = 0x2f6fed;
+export const SLINGSHOT_GRAB_RADIUS = 34; // pointerdown hit-test radius around the resting bird
+export const TRAJECTORY_DOT_COUNT = 14;
+export const TRAJECTORY_DOT_COLOR = 0xffffff;
+export const SLINGSHOT_BAND_COLOR = 0x8a5a2e;

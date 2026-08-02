@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
+  BOARD_HEIGHT,
   BOARD_WIDTH,
   LAWN_BREACH_X,
   PLANT_DEFS,
@@ -21,7 +22,21 @@ import {
 } from './config/gameConfig.js';
 import { ORCHESTRATION_STEPS_BY_DIFFICULTY, OrchestrationStep } from './config/orchestrationSteps.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
-import { RoomState, SlotState, SlotProjectileState, PlantType, WaveStatus, ZombieState, ZombieType } from './types.js';
+import {
+  SLINGSHOT_COOLDOWN_TICKS,
+  SLINGSHOT_MAX_PULL,
+  SLINGSHOT_MIN_PULL_X,
+  SLINGSHOT_RANGE_MULTIPLIER,
+  SLINGSHOT_X,
+  SLINGSHOT_Y,
+  SLINGSHOT_BASE_FLIGHT_TICKS,
+  SLINGSHOT_FLIGHT_TICKS_PER_100PX,
+  SLINGSHOT_ZMAX_BASE,
+  SLINGSHOT_ZMAX_PER_100PX,
+  SLINGSHOT_DAMAGE,
+  SLINGSHOT_SPLASH_RADIUS,
+} from './config/slingshotConfig.js';
+import { RoomState, SlotState, SlotProjectileState, BirdProjectileState, PlantType, WaveStatus, ZombieState, ZombieType } from './types.js';
 import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
 import { ZOMBIE_BEHAVIORS } from './zombies/zombieBehaviors.js';
 
@@ -76,6 +91,15 @@ export function broadcastState(room: RoomState) {
       projectileType: projectile.projectileType,
       ownerId: projectile.ownerId,
     })),
+    birdProjectiles: room.birdProjectiles.map((bird) => ({
+      id: bird.id,
+      x: bird.x,
+      y: bird.y,
+      z: birdHeightAt(bird, room.tick),
+      ownerId: bird.ownerId,
+      damage: bird.damage,
+    })),
+    slingshotCooldown: room.slingshotCooldown,
     zombies: room.zombies.map((zombie) => ({
       id: zombie.id,
       type: zombie.type,
@@ -446,6 +470,153 @@ export function advanceProjectiles(room: RoomState) {
   }
 
   room.projectiles = nextProjectiles;
+  room.zombies = room.zombies.filter((zombie) => zombie.hp > 0);
+}
+
+// Fraction of the flight elapsed, clamped to [0,1]. durationTicks is always
+// >= 1 (see fireSlingshot), so this can't divide by zero.
+function birdFlightT(bird: BirdProjectileState, tick: number): number {
+  return Math.min(1, Math.max(0, (tick - bird.startTick) / bird.durationTicks));
+}
+
+// Height above the ground plane: a fixed-endpoint parabola that's 0 at
+// launch (t=0) and landing (t=1), peaking at zMax when t=0.5. Purely a
+// rendering value (see broadcastState) - the x/y board-plane position is
+// what's used for splash-damage resolution below, not this.
+function birdHeightAt(bird: BirdProjectileState, tick: number): number {
+  const t = birdFlightT(bird, tick);
+  return 4 * bird.zMax * t * (1 - t);
+}
+
+// Drag-to-fire. dx/dy is the raw pull vector (pointer - anchor) in board
+// units; the server redoes the same math the client used for its trajectory
+// preview rather than trusting a client-supplied target, so a shot can't be
+// aimed anywhere out of range.
+//
+// Only a leftward pull (away from the fork, which faces rightward into the
+// board) arms a shot - mirroring that pull through the anchor is what
+// guarantees the resulting launch vector always points into the board
+// instead of off the back of the slingshot toward the edge of the screen.
+export function fireSlingshot(room: RoomState, playerId: string, dx: number, dy: number) {
+  if (room.slingshotCooldown > 0) {
+    return { success: false, message: 'on_cooldown' };
+  }
+
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+    return { success: false, message: 'invalid_pull' };
+  }
+
+  const pullMagnitude = Math.sqrt(dx * dx + dy * dy);
+  const clampScale = pullMagnitude > SLINGSHOT_MAX_PULL && pullMagnitude > 0 ? SLINGSHOT_MAX_PULL / pullMagnitude : 1;
+  const pullX = dx * clampScale;
+  const pullY = dy * clampScale;
+
+  if (-pullX < SLINGSHOT_MIN_PULL_X) {
+    return { success: false, message: 'pull_too_small' };
+  }
+
+  const rawTargetX = SLINGSHOT_X - pullX * SLINGSHOT_RANGE_MULTIPLIER;
+  const rawTargetY = SLINGSHOT_Y - pullY * SLINGSHOT_RANGE_MULTIPLIER;
+  const clampedTargetX = Math.max(0, Math.min(BOARD_WIDTH, rawTargetX));
+  const clampedTargetY = Math.max(0, Math.min(BOARD_HEIGHT, rawTargetY));
+
+  // Snap to the nearest slot center - this is the "which box it ends up
+  // hitting" the aiming is meant to resolve to, and gives splash damage a
+  // clean, board-aligned impact point.
+  let targetSlot: SlotState | null = null;
+  let nearestDistance = Infinity;
+  for (const slot of room.slots) {
+    const slotDx = slot.x - clampedTargetX;
+    const slotDy = slot.y - clampedTargetY;
+    const distance = slotDx * slotDx + slotDy * slotDy;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      targetSlot = slot;
+    }
+  }
+
+  if (!targetSlot) {
+    return { success: false, message: 'invalid_slot' };
+  }
+
+  const travelDx = targetSlot.x - SLINGSHOT_X;
+  const travelDy = targetSlot.y - SLINGSHOT_Y;
+  const travelDistance = Math.sqrt(travelDx * travelDx + travelDy * travelDy);
+
+  const durationTicks = Math.max(
+    1,
+    Math.round(SLINGSHOT_BASE_FLIGHT_TICKS + (travelDistance / 100) * SLINGSHOT_FLIGHT_TICKS_PER_100PX),
+  );
+  const zMax = SLINGSHOT_ZMAX_BASE + (travelDistance / 100) * SLINGSHOT_ZMAX_PER_100PX;
+
+  room.birdProjectiles.push({
+    id: `bird-${uuidv4()}`,
+    ownerId: playerId,
+    startX: SLINGSHOT_X,
+    startY: SLINGSHOT_Y,
+    targetX: targetSlot.x,
+    targetY: targetSlot.y,
+    startTick: room.tick,
+    durationTicks,
+    zMax,
+    damage: SLINGSHOT_DAMAGE,
+    splashRadius: SLINGSHOT_SPLASH_RADIUS,
+    x: SLINGSHOT_X,
+    y: SLINGSHOT_Y,
+  });
+
+  room.slingshotCooldown = SLINGSHOT_COOLDOWN_TICKS;
+
+  return { success: true };
+}
+
+export function advanceSlingshotCooldown(room: RoomState) {
+  if (room.slingshotCooldown > 0) {
+    room.slingshotCooldown -= 1;
+  }
+}
+
+export function advanceBirdProjectiles(room: RoomState) {
+  const remaining: BirdProjectileState[] = [];
+
+  for (const bird of room.birdProjectiles) {
+    const t = birdFlightT(bird, room.tick);
+    bird.x = bird.startX + (bird.targetX - bird.startX) * t;
+    bird.y = bird.startY + (bird.targetY - bird.startY) * t;
+
+    if (t < 1) {
+      remaining.push(bird);
+      continue;
+    }
+
+    // Landed - splash damage to every zombie within range of the impact
+    // point, regardless of lane (this is an AOE lob, not a lane-locked shot
+    // like the peashooter's pea, so it can hit zombies in adjacent rows too).
+    for (const zombie of room.zombies) {
+      const zombieDx = zombie.x - bird.targetX;
+      const zombieDy = zombie.y - bird.targetY;
+      if (Math.sqrt(zombieDx * zombieDx + zombieDy * zombieDy) > bird.splashRadius) {
+        continue;
+      }
+
+      zombie.hp -= bird.damage;
+      if (zombie.hp <= 0) {
+        const amount = Math.round(
+          PLANT_MATTER_DROP_MIN + Math.random() * (PLANT_MATTER_DROP_MAX - PLANT_MATTER_DROP_MIN),
+        );
+        room.plantMatterPickups.push({
+          id: `pm-${uuidv4()}`,
+          laneIndex: zombie.laneIndex,
+          x: zombie.x,
+          y: zombie.y,
+          amount,
+          ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
+        });
+      }
+    }
+  }
+
+  room.birdProjectiles = remaining;
   room.zombies = room.zombies.filter((zombie) => zombie.hp > 0);
 }
 
