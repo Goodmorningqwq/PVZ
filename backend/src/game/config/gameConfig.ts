@@ -7,6 +7,33 @@ export const SLOT_MARGIN = 48;
 export const ZOMBIE_SPAWN_X = BOARD_WIDTH - 20;
 export const LAWN_BREACH_X = 0;
 
+// --- Board geometry: THE source of truth for where anything sits ------------
+//
+// Every board coordinate in the game derives from these two functions. They
+// live in the config (not the engine) so that config modules like
+// slingshotConfig.ts can use them without importing the engine, which is what
+// previously forced the lane-Y formula to be copy-pasted around.
+//
+// Before this existed the same two formulas were written out in four separate
+// places — roomStore.buildSlots, defaultGameEngine.roomLaneY (which hardcoded
+// 400 and 40 as literals rather than importing them, so it silently ignored
+// any change to the board size), slingshotConfig, and again on the client.
+// Nothing failed when they drifted; the only symptom was visual.
+//
+// If the playfield ever needs to stop being "the whole canvas" — e.g. inset to
+// the lawn area of a background image that has a house down one side — this is
+// the only place that has to change on the server.
+
+export function getLaneY(laneIndex: number): number {
+  const laneSpacing = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
+  return Math.round(LANE_MARGIN + laneSpacing * laneIndex);
+}
+
+export function getSlotX(col: number): number {
+  const slotSpacing = (BOARD_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
+  return Math.round(SLOT_MARGIN + slotSpacing * (col + 0.5));
+}
+
 export const TICK_RATE = Number(process.env.TICK_RATE || 20);
 export const STARTING_SUN = 150;
 

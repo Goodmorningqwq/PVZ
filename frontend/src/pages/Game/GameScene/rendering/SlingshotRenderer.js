@@ -1,12 +1,11 @@
 import {
   BIRD_COLOR,
   BIRD_RADIUS,
-  SLINGSHOT_X,
-  SLINGSHOT_Y,
   SLINGSHOT_BAND_COLOR,
   TRAJECTORY_DOT_COLOR,
   TRAJECTORY_DOT_COUNT,
 } from '../constants';
+import { getSlingshotAnchor } from '../boardLayout';
 import { sampleTrajectory, snapToNearestSlot } from '../slingshotMath';
 import { BaseRenderer } from './BaseRenderer';
 
@@ -44,8 +43,11 @@ export class SlingshotRenderer extends BaseRenderer {
     if (this.forkImage) {
       return;
     }
-    if (this.scene.textures.exists('slingshot-idle-0')) {
-      this.forkImage = this.scene.add.image(SLINGSHOT_X, SLINGSHOT_Y, 'slingshot-idle-0').setOrigin(0.4, 0.5);
+    // Anchor arrives with the first state_update, so this may be called a few
+    // frames before it's known - just skip until it is.
+    const anchor = getSlingshotAnchor();
+    if (anchor && this.scene.textures.exists('slingshot-idle-0')) {
+      this.forkImage = this.scene.add.image(anchor.x, anchor.y, 'slingshot-idle-0').setOrigin(0.4, 0.5);
     }
   }
 
@@ -53,8 +55,12 @@ export class SlingshotRenderer extends BaseRenderer {
   // slingshot is on cooldown so it reads as "not ready yet". Hidden entirely
   // while a drag is in progress (updateDrag draws the pulled bird instead).
   renderRestingBird(ready, dragging) {
+    const anchor = getSlingshotAnchor();
+    if (!anchor) {
+      return;
+    }
     if (!this.restBird) {
-      this.restBird = this.scene.add.circle(SLINGSHOT_X, SLINGSHOT_Y, BIRD_RADIUS, BIRD_COLOR).setStrokeStyle(2, 0x1a3f9e);
+      this.restBird = this.scene.add.circle(anchor.x, anchor.y, BIRD_RADIUS, BIRD_COLOR).setStrokeStyle(2, 0x1a3f9e);
     }
     this.restBird.setVisible(!dragging);
     this.restBird.setAlpha(ready ? 1 : 0.35);
@@ -65,8 +71,13 @@ export class SlingshotRenderer extends BaseRenderer {
   // whichever slot the shot is currently aimed at. `armed` is whether the
   // pull currently clears the minimum threshold to actually fire.
   updateDrag(pointerX, pointerY, target, armed) {
+    const anchor = getSlingshotAnchor();
+    if (!anchor) {
+      return;
+    }
+
     if (!this.pulledBird) {
-      this.pulledBird = this.scene.add.circle(SLINGSHOT_X, SLINGSHOT_Y, BIRD_RADIUS, BIRD_COLOR).setStrokeStyle(2, 0x1a3f9e);
+      this.pulledBird = this.scene.add.circle(anchor.x, anchor.y, BIRD_RADIUS, BIRD_COLOR).setStrokeStyle(2, 0x1a3f9e);
     }
     this.pulledBird.setVisible(true);
     this.pulledBird.setPosition(pointerX, pointerY);
@@ -76,14 +87,17 @@ export class SlingshotRenderer extends BaseRenderer {
 
     // Rubber band from the two fork prongs to the pulled bird.
     this.dragGraphics.lineStyle(3, SLINGSHOT_BAND_COLOR, 0.9);
-    this.dragGraphics.lineBetween(SLINGSHOT_X + 20, SLINGSHOT_Y - 26, pointerX, pointerY);
-    this.dragGraphics.lineBetween(SLINGSHOT_X + 20, SLINGSHOT_Y + 26, pointerX, pointerY);
+    this.dragGraphics.lineBetween(anchor.x + 20, anchor.y - 26, pointerX, pointerY);
+    this.dragGraphics.lineBetween(anchor.x + 20, anchor.y + 26, pointerX, pointerY);
 
     if (!armed) {
       return;
     }
 
     const slot = snapToNearestSlot(target);
+    if (!slot) {
+      return;
+    }
 
     // Target slot highlight - a pulsing-looking double ring is overkill for a
     // per-frame redraw, so just two concentric strokes.

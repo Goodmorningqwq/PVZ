@@ -61,39 +61,27 @@ export const HP_LABEL_OFFSET = {
   zombie: { x: 0, y: -40 },
 };
 
-// --- Board layout (must match backend/src/index.ts) ------------------------
-// 5 lanes (rows), 8 slots per lane (columns) — classic PvZ-style grid.
+// --- Board layout ----------------------------------------------------------
+//
+// Deliberately empty of coordinates. LANE_MARGIN, LANE_SPACING, SLOT_MARGIN,
+// SLOT_SPACING, getLaneY() and getSlotPositions() used to live here, hand-kept
+// in sync with the server's identical formulas in gameConfig.ts. That sync was
+// unenforced and silent when broken. The server sends every slot's x/y in each
+// state_update, so the client reads geometry from boardLayout.js instead of
+// deriving it — see the header comment there.
+//
+// SLOT_RADIUS stays because it's an interaction affordance (how close a click
+// counts as hitting a slot), not a position, and the server does not send it.
 export const LANE_COUNT = 5;
-export const LANE_MARGIN = 40;
-export const LANE_SPACING = (GAME_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
 export const SLOT_COUNT = 8; // per lane
-export const SLOT_MARGIN = 48;
-export const SLOT_SPACING = (GAME_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
 export const SLOT_RADIUS = 30; // click-hit radius around a slot center
 
-export function getLaneY(laneIndex) {
-  return Math.round(LANE_MARGIN + LANE_SPACING * laneIndex);
-}
-
-export function getSlotPositions() {
-  const positions = [];
-  for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
-    for (let col = 0; col < SLOT_COUNT; col += 1) {
-      positions.push({
-        index: laneIndex * SLOT_COUNT + col,
-        laneIndex,
-        x: Math.round(SLOT_MARGIN + SLOT_SPACING * (col + 0.5)),
-        y: getLaneY(laneIndex),
-      });
-    }
-  }
-  return positions;
-}
-
-// --- Slingshot (must match backend/src/game/config/slingshotConfig.ts) ----
-export const SLINGSHOT_LANE_INDEX = 2; // row 3
-export const SLINGSHOT_X = 28;
-export const SLINGSHOT_Y = getLaneY(SLINGSHOT_LANE_INDEX);
+// --- Slingshot (tuning only — the anchor position comes from the server) ---
+// SLINGSHOT_X/Y and SLINGSHOT_LANE_INDEX are gone from here for the same
+// reason as the grid above: the fork's position is board geometry, so it
+// arrives on `state_update` as `slingshot: {x, y}` and is read via
+// getSlingshotAnchor(). The values below are shot-feel tuning that must match
+// slingshotConfig.ts so the drag preview matches the server's simulation.
 export const SLINGSHOT_MAX_PULL = 140;
 export const SLINGSHOT_MIN_PULL_X = 18;
 // rawTarget = anchor - pull * RANGE_MULTIPLIER. Tuned so MAX_PULL reaches the

@@ -13,6 +13,7 @@ let latestState = {
   plantMatterPickups: [],
   zombies: [],
   plantDefs: {},
+  slingshot: null,
   tick: 0,
   wave: 0,
   waveStatus: 'pending',
@@ -76,6 +77,7 @@ function normalizeState(payload) {
     plantMatterPickups: normalizePlantMatterPickups(payload?.plantMatterPickups),
     zombies: normalizeEntities(payload?.zombies),
     plantDefs: normalizePlantDefs(payload?.plantDefs),
+    slingshot: normalizeAnchor(payload?.slingshot),
     tick: Number.isFinite(payload?.tick) ? payload.tick : 0,
     wave: Number.isFinite(payload?.wave) ? payload.wave : 0,
     waveStatus: typeof payload?.waveStatus === 'string' ? payload.waveStatus : 'pending',
@@ -269,6 +271,20 @@ function normalizePlantDefs(plantDefs) {
       ])
       .filter(([, def]) => Number.isFinite(def.cost)),
   );
+}
+
+// Board geometry the client renders against but can't derive — currently just
+// the slingshot anchor. Null rather than a default when absent or malformed,
+// so consumers skip drawing instead of falling back to a stale hardcoded
+// position that could silently disagree with the server.
+function normalizeAnchor(anchor) {
+  if (!anchor || typeof anchor !== 'object') {
+    return null;
+  }
+
+  const x = Number(anchor.x);
+  const y = Number(anchor.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
 function normalizeSun(sun) {

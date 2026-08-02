@@ -4,24 +4,16 @@ import gameBackgroundUrl from '../../../assets/gameBackground.png';
 import {
   LANE_COLOR,
   LANE_COLOR_ALT,
-  LANE_COUNT,
-  LANE_SPACING,
   PLANT_MATTER_PICKUP_RADIUS,
   SLINGSHOT_GRAB_RADIUS,
-  SLINGSHOT_X,
-  SLINGSHOT_Y,
-  SLOT_MARGIN,
   SLOT_MARKER_COLOR,
   SLOT_RADIUS,
   SUN_PICKUP_RADIUS,
-  getLaneY,
-  getSlotPositions,
 } from './constants';
+import { getBoardRect, getSlingshotAnchor, getSlots, updateBoardLayout } from './boardLayout';
 import { PlantMatterRenderer, PlantRenderer, ProjectileRenderer, SlingshotRenderer, SunRenderer, ZombieRenderer, createPlantAnimations, preloadPlantAnimations } from './rendering';
 import { clampPull, computeRawTarget, isPullArmed } from './slingshotMath';
 import { normalizeSun, toStringId } from './utils';
-
-const SLOT_POSITIONS = getSlotPositions();
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -67,10 +59,11 @@ export default class GameScene extends Phaser.Scene {
     this.background = this.add.graphics();
     this.slotMarkers = this.add.graphics();
 
-    this.drawBackground();
-    this.drawSlotMarkers();
-    this.slingshotRenderer.renderFork();
-    this.slingshotRenderer.renderRestingBird(true, false);
+    // Board-dependent visuals (lane shading, slot markers, the fork) can't be
+    // drawn here any more: the geometry they need arrives with the first
+    // state_update. renderState() draws them once it has, and drawBoardChrome
+    // is idempotent so re-running it on a later slot change is safe.
+    this.boardChromeDrawn = false;
     this.input.on('pointerdown', this.handlePointerDown, this);
     // Hover collection (desktop/mouse). Tap collection for touch devices —
     // which have no hover concept — is handled in handlePointerDown below.
@@ -108,6 +101,17 @@ export default class GameScene extends Phaser.Scene {
 
     this.lastRenderedTick = tick;
     this.latestSlots = slots;
+
+    // Feed the server's geometry into boardLayout before anything reads it —
+    // hit-testing, marker drawing and the slingshot all source their
+    // coordinates from there now rather than re-deriving them locally.
+    updateBoardLayout(latestState);
+    if (!this.boardChromeDrawn && getSlots().length > 0) {
+      this.drawBackground();
+      this.drawSlotMarkers();
+      this.boardChromeDrawn = true;
+    }
+    this.slingshotRenderer.renderFork();
     const projectiles = Array.isArray(latestState?.projectiles) ? latestState.projectiles : [];
     const birdProjectiles = Array.isArray(latestState?.birdProjectiles) ? latestState.birdProjectiles : [];
     const slingshotCooldown = Number.isFinite(latestState?.slingshotCooldown) ? latestState.slingshotCooldown : 0;
@@ -302,8 +306,13 @@ export default class GameScene extends Phaser.Scene {
       return false;
     }
 
-    const dx = pointer.worldX - SLINGSHOT_X;
-    const dy = pointer.worldY - SLINGSHOT_Y;
+    const anchor = getSlingshotAnchor();
+    if (!anchor) {
+      return false;
+    }
+
+    const dx = pointer.worldX - anchor.x;
+    const dy = pointer.worldY - anchor.y;
     if (Math.sqrt(dx * dx + dy * dy) > SLINGSHOT_GRAB_RADIUS) {
       return false;
     }
@@ -323,12 +332,17 @@ export default class GameScene extends Phaser.Scene {
   // is exactly what handleWindowPointerUp sends to the server on release, so
   // the preview never lies about where the shot will land.
   updateSlingshotDragFromWorld(worldX, worldY) {
-    const pull = clampPull(worldX - SLINGSHOT_X, worldY - SLINGSHOT_Y);
+    const anchor = getSlingshotAnchor();
+    if (!anchor) {
+      return;
+    }
+
+    const pull = clampPull(worldX - anchor.x, worldY - anchor.y);
     const armed = isPullArmed(pull);
     const target = computeRawTarget(pull);
 
     this.slingshotDrag.pull = pull;
-    this.slingshotRenderer.updateDrag(SLINGSHOT_X + pull.x, SLINGSHOT_Y + pull.y, target, armed);
+    this.slingshotRenderer.updateDrag(anchor.x + pull.x, anchor.y + pull.y, target, armed);
   }
 
   handleWindowPointerMove(event) {
@@ -413,7 +427,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    const slot = SLOT_POSITIONS.find((candidate) => {
+    const slot = getSlots().find((candidate) => {
       const dx = candidate.x - pointer.worldX;
       const dy = candidate.y - pointer.worldY;
       return Math.sqrt(dx * dx + dy * dy) <= SLOT_RADIUS;
@@ -466,7 +480,7 @@ export default class GameScene extends Phaser.Scene {
     // .waiting-code) rather than a bare thin outline, so open slots read as
     // "placeholder cards" consistent with the rest of the UI.
     this.slotMarkers.clear();
-    for (const slot of SLOT_POSITIONS) {
+    for (const slot of getSlots()) {
       this.slotMarkers.fillStyle(0xffffff, 0.14);
       this.slotMarkers.fillCircle(slot.x, slot.y, SLOT_RADIUS);
       this.slotMarkers.lineStyle(2, SLOT_MARKER_COLOR, 0.55);
@@ -475,20 +489,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   drawBackground() {
-    const { width, height } = this.scale;
-    const laneWidth = Math.max(width - SLOT_MARGIN * 2, 0);
+    const { height } = this.scale;
+    const rect = getBoardRect();
 
     this.background.clear();
-
-    // 5-row checkerboard lane grid, alternating shades so each zombie lane
-    // reads clearly (matches the classic PvZ board proportions). Drawn with
-    // partial alpha over gameBackground so the lawn art still shows through.
-    for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
-      const laneY = getLaneY(laneIndex);
-      const rowTop = Math.max(0, laneY - LANE_SPACING / 2);
-      const rowBottom = Math.min(height, laneY + LANE_SPACING / 2);
-      this.background.fillStyle(laneIndex % 2 === 0 ? LANE_COLOR : LANE_COLOR_ALT, 0.35);
-      this.background.fillRect(SLOT_MARGIN, rowTop, laneWidth, Math.max(rowBottom - rowTop, 0));
+    if (!rect) {
+      return;
     }
+
+    // Checkerboard lane shading, alternating so each zombie lane reads
+    // clearly. Drawn with partial alpha over gameBackground so the lawn art
+    // still shows through. The rows and their extent come from the server's
+    // slot positions (via getBoardRect) rather than from local margin
+    // constants, so if the grid is ever inset to the background's actual lawn
+    // area this shading follows it automatically.
+    const laneWidth = Math.max(rect.right - rect.left, 0);
+    rect.laneYs.forEach((laneY, laneIndex) => {
+      const rowTop = Math.max(0, laneY - rect.rowHeight / 2);
+      const rowBottom = Math.min(height, laneY + rect.rowHeight / 2);
+      this.background.fillStyle(laneIndex % 2 === 0 ? LANE_COLOR : LANE_COLOR_ALT, 0.35);
+      this.background.fillRect(rect.left, rowTop, laneWidth, Math.max(rowBottom - rowTop, 0));
+    });
   }
 }

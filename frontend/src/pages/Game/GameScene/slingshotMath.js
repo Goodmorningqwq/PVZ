@@ -11,14 +11,10 @@ import {
   SLINGSHOT_MAX_PULL,
   SLINGSHOT_MIN_PULL_X,
   SLINGSHOT_RANGE_MULTIPLIER,
-  SLINGSHOT_X,
-  SLINGSHOT_Y,
   SLINGSHOT_ZMAX_BASE,
   SLINGSHOT_ZMAX_PER_100PX,
-  getSlotPositions,
 } from './constants';
-
-const SLOT_POSITIONS = getSlotPositions();
+import { getSlingshotAnchor, getSlots } from './boardLayout';
 
 // Clamps the raw pointer-minus-anchor vector to the max pull radius,
 // preserving direction - mirrors the clamp in fireSlingshot.
@@ -44,8 +40,12 @@ export function isPullArmed(pull) {
 // left edge - unavoidable given the anchor sits close to it - still reports
 // real (even negative) worldX instead of freezing at the boundary.
 export function computeRawTarget(pull) {
-  const rawX = SLINGSHOT_X - pull.x * SLINGSHOT_RANGE_MULTIPLIER;
-  const rawY = SLINGSHOT_Y - pull.y * SLINGSHOT_RANGE_MULTIPLIER;
+  const anchor = getSlingshotAnchor();
+  if (!anchor) {
+    return { x: 0, y: 0 };
+  }
+  const rawX = anchor.x - pull.x * SLINGSHOT_RANGE_MULTIPLIER;
+  const rawY = anchor.y - pull.y * SLINGSHOT_RANGE_MULTIPLIER;
   return {
     x: Math.max(0, Math.min(GAME_WIDTH, rawX)),
     y: Math.max(0, Math.min(GAME_HEIGHT, rawY)),
@@ -55,9 +55,10 @@ export function computeRawTarget(pull) {
 // Nearest slot center to a raw aim point - this is the box the shot will
 // actually land in.
 export function snapToNearestSlot(target) {
-  let nearest = SLOT_POSITIONS[0];
+  const slots = getSlots();
+  let nearest = slots[0] ?? null;
   let nearestDistance = Infinity;
-  for (const slot of SLOT_POSITIONS) {
+  for (const slot of slots) {
     const dx = slot.x - target.x;
     const dy = slot.y - target.y;
     const distance = dx * dx + dy * dy;
@@ -80,8 +81,13 @@ export function computeZMax(distance) {
 // birdFlightT/birdHeightAt in defaultGameEngine.ts: z is 0 at t=0 and t=1,
 // peaking at zMax when t=0.5.
 export function sampleTrajectory(targetX, targetY, count) {
-  const dx = targetX - SLINGSHOT_X;
-  const dy = targetY - SLINGSHOT_Y;
+  const anchor = getSlingshotAnchor();
+  if (!anchor) {
+    return [];
+  }
+
+  const dx = targetX - anchor.x;
+  const dy = targetY - anchor.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
   const zMax = computeZMax(distance);
 
@@ -89,8 +95,8 @@ export function sampleTrajectory(targetX, targetY, count) {
   for (let index = 0; index < count; index += 1) {
     const t = count === 1 ? 1 : index / (count - 1);
     points.push({
-      x: SLINGSHOT_X + dx * t,
-      y: SLINGSHOT_Y + dy * t,
+      x: anchor.x + dx * t,
+      y: anchor.y + dy * t,
       z: 4 * zMax * t * (1 - t),
     });
   }

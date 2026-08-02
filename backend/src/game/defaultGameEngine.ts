@@ -19,6 +19,7 @@ import {
   ZOMBIE_RADIUS,
   ZOMBIE_SPAWN_X,
   LANE_COUNT,
+  getLaneY,
 } from './config/gameConfig.js';
 import { ORCHESTRATION_STEPS_BY_DIFFICULTY, OrchestrationStep } from './config/orchestrationSteps.js';
 import PROJECTILE_DEFS from './config/projectileDefs.json' with { type: 'json' };
@@ -47,11 +48,13 @@ const PLANT_INFO = Object.fromEntries(
   Object.entries(PLANT_DEFS).map(([type, def]) => [type, { cost: def.cost, label: def.label }]),
 );
 
-export function roomLaneY(laneIndex: number): number {
-  const laneMargin = 40;
-  const laneSpacing = (400 - laneMargin * 2) / (LANE_COUNT - 1);
-  return Math.round(laneMargin + laneSpacing * laneIndex);
-}
+// Kept as a re-export rather than deleted so existing callers (spawnZombieInLane)
+// don't have to change. The body used to re-implement the lane-Y formula with
+// 400 and 40 written in as literals instead of imported, which meant zombies
+// would have kept spawning on the old lane centres after any board resize
+// while plants moved to the new ones — the exact silent drift getLaneY exists
+// to prevent.
+export const roomLaneY = getLaneY;
 
 export function initializePlayerSun(room: RoomState, playerId: string) {
   room.sun[playerId] = room.sun[playerId] ?? STARTING_SUN;
@@ -125,6 +128,13 @@ export function broadcastState(room: RoomState) {
     sun: { ...room.sun },
     plantMatter: room.plantMatter,
     plantDefs: PLANT_INFO,
+    // Board geometry the client can't derive from the slot list alone. Slots
+    // already carry their own x/y, so the client needs no layout formulas of
+    // its own — but the slingshot anchor sits off-grid, and the aiming preview
+    // needs it locally every frame. Sending it (like the static plantDefs
+    // above) keeps the server the sole owner of board geometry instead of the
+    // client re-deriving the lane formula to place the fork.
+    slingshot: { x: SLINGSHOT_X, y: SLINGSHOT_Y },
     ...computeWaveDisplay(room),
   };
 }

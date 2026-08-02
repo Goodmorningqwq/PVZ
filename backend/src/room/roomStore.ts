@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { SLOT_COUNT, SLOT_MARGIN, BOARD_HEIGHT, BOARD_WIDTH, LANE_COUNT, LANE_MARGIN, TICK_RATE } from '../game/config/gameConfig.js';
+import { SLOT_COUNT, LANE_COUNT, TICK_RATE, getLaneY, getSlotX } from '../game/config/gameConfig.js';
 import { ORCHESTRATION_STEPS_BY_DIFFICULTY } from '../game/config/orchestrationSteps.js';
 import { RoomDifficulty, RoomMode, RoomState, SlotState } from '../game/types.js';
 
@@ -12,21 +12,15 @@ const ROOM_CAPACITY: Record<RoomMode, number> = {
   demo: 1,
 };
 
-function getLaneY(laneIndex: number): number {
-  const laneSpacing = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
-  return Math.round(LANE_MARGIN + laneSpacing * laneIndex);
-}
-
 function buildSlots(): SlotState[] {
   const slots: SlotState[] = [];
-  const slotSpacing = (BOARD_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
 
   for (let laneIndex = 0; laneIndex < LANE_COUNT; laneIndex += 1) {
     for (let col = 0; col < SLOT_COUNT; col += 1) {
       slots.push({
         index: laneIndex * SLOT_COUNT + col,
         laneIndex,
-        x: Math.round(SLOT_MARGIN + slotSpacing * (col + 0.5)),
+        x: getSlotX(col),
         y: getLaneY(laneIndex),
         plant: null,
       });

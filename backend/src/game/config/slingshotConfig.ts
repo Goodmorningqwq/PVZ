@@ -1,13 +1,13 @@
-import { BOARD_HEIGHT, LANE_COUNT, LANE_MARGIN } from './gameConfig.js';
+import { getLaneY } from './gameConfig.js';
 
-// Row 3 (0-indexed lane 2) — same lane-Y formula duplicated in
-// defaultGameEngine.ts (roomLaneY) and roomStore.ts (getLaneY); config files
-// stay dependency-free of the engine, so it's replicated here rather than
-// imported.
+// Row 3 (0-indexed lane 2). This used to re-implement the lane-Y formula
+// locally, with a comment explaining that config files stay dependency-free of
+// the engine so replication was unavoidable. That reasoning was sound but the
+// conclusion wasn't — the formula belongs in the config alongside the
+// constants it reads, not in the engine, so it can just be imported.
 export const SLINGSHOT_LANE_INDEX = 2;
-const laneSpacing = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
 export const SLINGSHOT_X = 28;
-export const SLINGSHOT_Y = Math.round(LANE_MARGIN + laneSpacing * SLINGSHOT_LANE_INDEX);
+export const SLINGSHOT_Y = getLaneY(SLINGSHOT_LANE_INDEX);
 
 // Drag-to-aim. The pull vector is clamped to this radius (board px), and only
 // arms a shot once its leftward (away-from-the-fork) component clears
