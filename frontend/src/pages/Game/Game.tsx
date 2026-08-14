@@ -22,10 +22,18 @@ type PlantDef = {
   label: string;
 };
 
+type PlantMatterOverflow = {
+  over: boolean;
+  graceTicksRemaining: number;
+  active: boolean;
+};
+
 type HudState = {
   tick: number;
   sun: Record<string, number>;
   plantMatter: number;
+  plantMatterMax: number;
+  plantMatterOverflow: PlantMatterOverflow;
   plantDefs: Record<string, PlantDef>;
   wave: number;
   waveStatus: string;
@@ -41,6 +49,8 @@ const initialHud: HudState = {
   tick: 0,
   sun: {},
   plantMatter: 0,
+  plantMatterMax: 0,
+  plantMatterOverflow: { over: false, graceTicksRemaining: 0, active: false },
   plantDefs: {},
   wave: 0,
   waveStatus: 'pending',
@@ -237,6 +247,8 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         tick: number;
         sun: Record<string, number>;
         plantMatter: number;
+        plantMatterMax: number;
+        plantMatterOverflow: PlantMatterOverflow;
         plantDefs: Record<string, PlantDef>;
         wave: number;
         waveStatus: string;
@@ -246,6 +258,8 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           ...current,
           tick: payload.tick,
           sun: payload.sun || {},
+          plantMatterMax: Number.isFinite(payload.plantMatterMax) ? payload.plantMatterMax : 0,
+          plantMatterOverflow: payload.plantMatterOverflow || { over: false, graceTicksRemaining: 0, active: false },
           plantMatter: Number.isFinite(payload.plantMatter) ? payload.plantMatter : 0,
           plantDefs: payload.plantDefs || {},
           wave: payload.wave,
@@ -326,7 +340,12 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         <div className="stage-tools">
           <Shovel active={shovelActive} onToggle={toggleShovel} />
           <div className="stage-tools-spacer" />
-          <PlantMatterBar plantMatter={hud.plantMatter} onDrop={handleMatterDrop} />
+          <PlantMatterBar
+            plantMatter={hud.plantMatter}
+            plantMatterMax={hud.plantMatterMax}
+            overflow={hud.plantMatterOverflow}
+            onDrop={handleMatterDrop}
+          />
         </div>
 
         <div className="game-canvas-wrapper">

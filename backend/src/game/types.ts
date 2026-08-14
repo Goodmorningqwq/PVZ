@@ -130,6 +130,12 @@ export type RoomState = {
   // Shared, not per-player like `sun` — a single pool both players draw from
   // to repair/buff plants (see plantBehaviors.ts / useMatterOnPlant).
   plantMatter: number;
+  // Grace remaining before the overflow debuff bites, in ticks. Drains only
+  // while plantMatter is over PLANT_MATTER_SOFT_MAX and refills instantly the
+  // moment it isn't, so spending back under the cap always clears the penalty
+  // rather than starting another timer. At 0 (and still over) every plant
+  // slows — see isPlantMatterOverflowing in gameConfig.ts.
+  plantMatterOverflowGraceTicks: number;
   tick: number;
   gameOver: boolean;
   result?: 'win' | 'lose';

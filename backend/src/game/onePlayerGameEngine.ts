@@ -2,6 +2,7 @@ import { RoomState } from './types.js';
 import {
   advanceBirdProjectiles,
   advanceOrchestration,
+  advancePlantMatterOverflow,
   advancePlantMatterPickups,
   advancePlants,
   advanceProjectiles,
@@ -43,6 +44,9 @@ export {
 function runOnePlayerGameTick(room: RoomState) {
   room.tick += 1;
   advanceOrchestration(room);
+  // Before advancePlants, so a plant re-arming its timer this tick sees the
+  // overflow state as of this tick rather than last one.
+  advancePlantMatterOverflow(room);
   advancePlants(room);
   advanceSunPickups(room);
   advancePlantMatterPickups(room);

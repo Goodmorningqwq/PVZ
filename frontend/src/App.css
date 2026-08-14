@@ -487,6 +487,42 @@
   overflow: hidden;
 }
 
+/* Overflow: the bar itself goes red once the penalty is live, so the state is
+   readable from the tools column without reading the warning text. */
+.plant-matter-bar--overflowing {
+  border-color: #c2543f;
+  background: rgba(194, 84, 63, 0.1);
+}
+
+.plant-matter-bar-max {
+  font-size: 11px;
+  font-weight: 400;
+  color: #7a8a72;
+}
+
+.plant-matter-warning {
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  color: #8a6a1e;
+}
+
+.plant-matter-warning--active {
+  color: #8d3826;
+}
+
+/* Fill turns amber past the cap while the grace period is still running —
+   a warning you can act on, before the red of the penalty landing. */
+.plant-matter-bar-fill--over {
+  background: linear-gradient(180deg, #f0c86a, #c98f28);
+}
+
+.plant-matter-bar--overflowing .plant-matter-bar-fill--over {
+  background: linear-gradient(180deg, #e08a72, #c2543f);
+}
+
 .plant-matter-bar-fill {
   position: absolute;
   bottom: 0;

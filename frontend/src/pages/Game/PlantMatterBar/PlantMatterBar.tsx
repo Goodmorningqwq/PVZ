@@ -1,8 +1,18 @@
 import React, { useRef, useState } from 'react';
 import plantMatterIcon from '../../../assets/sprites/ItemTextures/plantmatter/idle/frame-0.svg';
 
+type PlantMatterOverflow = {
+  over: boolean;
+  graceTicksRemaining: number;
+  active: boolean;
+};
+
 type PlantMatterBarProps = {
   plantMatter: number;
+  // Soft cap from the server. Matter still accumulates past it; going over
+  // starts a grace countdown and then slows every plant.
+  plantMatterMax: number;
+  overflow: PlantMatterOverflow;
   // Game.tsx owns the Phaser instance and the latest slot state, so it's the
   // one that knows how to turn a page coordinate into a world coordinate and
   // find the nearest plant - this component only owns the drag gesture UI.
@@ -11,19 +21,25 @@ type PlantMatterBarProps = {
   onDrop: (pageX: number, pageY: number) => void;
 };
 
-// Bar fill is purely cosmetic - the pool is intentionally uncapped (see
-// gameConfig.ts / the brainstorm that led here: a hard cap on the shared
-// pool felt pointless once repair/buff sinks existed), so this is just a
-// "how full does the bar look" reference point, not a real ceiling. The
-// numeric readout below the bar always shows the real value.
-const BAR_VISUAL_MAX = 400;
+// Fallback only, for the brief window before the first state_update arrives.
+// The real cap is PLANT_MATTER_SOFT_MAX on the server and comes in on every
+// state update — this used to be a purely cosmetic "how full does the bar
+// look" number because the pool was genuinely uncapped, but overflow now has
+// real consequences so the bar has to draw against the actual threshold.
+const FALLBACK_BAR_MAX = 400;
 
-export default function PlantMatterBar({ plantMatter, onDrop }: PlantMatterBarProps) {
+// Server ticks per second — used only to render the grace countdown as
+// seconds. Must match TICK_RATE in the backend's gameConfig.ts.
+const TICK_RATE = 20;
+
+export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, onDrop }: PlantMatterBarProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
   const activePointerId = useRef<number | null>(null);
 
-  const fillPercent = Math.max(0, Math.min(100, (plantMatter / BAR_VISUAL_MAX) * 100));
+  const barMax = plantMatterMax > 0 ? plantMatterMax : FALLBACK_BAR_MAX;
+  const fillPercent = Math.max(0, Math.min(100, (plantMatter / barMax) * 100));
+  const graceSeconds = Math.ceil(overflow.graceTicksRemaining / TICK_RATE);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -68,11 +84,30 @@ export default function PlantMatterBar({ plantMatter, onDrop }: PlantMatterBarPr
   }
 
   return (
-    <div className="plant-matter-bar">
+    <div className={`plant-matter-bar ${overflow.active ? 'plant-matter-bar--overflowing' : ''}`}>
       <div className="plant-matter-bar-track" aria-hidden="true">
-        <div className="plant-matter-bar-fill" style={{ height: `${fillPercent}%` }} />
+        <div
+          className={`plant-matter-bar-fill ${overflow.over ? 'plant-matter-bar-fill--over' : ''}`}
+          style={{ height: `${fillPercent}%` }}
+        />
       </div>
-      <div className="plant-matter-bar-value">{plantMatter}</div>
+      <div className="plant-matter-bar-value">
+        {plantMatter}
+        <span className="plant-matter-bar-max">/{barMax}</span>
+      </div>
+
+      {/* Two distinct states: still inside the grace period (a countdown you
+          can act on) versus the penalty actually biting. */}
+      {overflow.over && !overflow.active && (
+        <div className="plant-matter-warning" role="status">
+          Over capacity — spend within {graceSeconds}s
+        </div>
+      )}
+      {overflow.active && (
+        <div className="plant-matter-warning plant-matter-warning--active" role="status">
+          Overloaded — plants slowed
+        </div>
+      )}
       <div
         className={`plant-matter-handle ${isDragging ? 'plant-matter-handle--dragging' : ''}`}
         onPointerDown={handlePointerDown}

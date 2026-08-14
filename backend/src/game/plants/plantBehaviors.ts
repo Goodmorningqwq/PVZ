@@ -4,6 +4,8 @@ import {
   BOARD_WIDTH,
   PLANT_DEFS,
   PLANT_MATTER_BUFF_RATE_MULTIPLIER,
+  PLANT_MATTER_OVERFLOW_RATE_MULTIPLIER,
+  isPlantMatterOverflowing,
   PEASHOOTER_STAMINA_DRAIN_PER_SHOT,
   SUNFLOWER_STAMINA_DRAIN_PER_PROC,
   SUN_PICKUP_LIFETIME_TICKS,
@@ -28,26 +30,39 @@ export function isValidPlantType(value: unknown): value is PlantType {
 // fire cooldown) into the interval it should actually use given its current
 // status. Every plant behavior that re-arms a timer goes through here.
 //
-// Tired takes priority over buffed (see the buffTicksRemaining comment in
-// types.ts): a plant that runs itself down mid-buff drops straight to the slow
-// tired rate rather than keeping the fast rate until it's repaired. Buff
-// shortens the interval (acts more often); tired lengthens it (acts less).
+// Two independent layers, deliberately not collapsed into one ternary:
+//
+//   1. The per-plant tier. Tired takes priority over buffed (see the
+//      buffTicksRemaining comment in types.ts): a plant that runs itself down
+//      mid-buff drops straight to the slow tired rate rather than keeping the
+//      fast rate until it's repaired. Buff shortens the interval (acts more
+//      often); tired lengthens it (acts less).
+//
+//   2. The room-wide plant matter overflow penalty, which multiplies whatever
+//      layer 1 produced. It's a property of the shared pool, not of any one
+//      plant, so it stacks rather than competing for the same slot — an
+//      overflowing board slows a tired plant and a buffed one alike.
 //
 // Extracted from advanceSunflower and advancePeashooter, which held
-// byte-identical copies of this ternary. Keeping it in one place matters more
-// than it looks: status tiers get added over time, and a nested ternary
-// duplicated per behavior is how you end up with a plant type that quietly
-// ignores one of them.
-export function effectiveRate(plant: SlotPlant, baseTicks: number): number {
+// byte-identical copies of layer 1. Keeping it in one place matters more than
+// it looks: a nested ternary duplicated per behavior is how you end up with a
+// plant type that quietly ignores one of the tiers.
+export function effectiveRate(room: RoomState, plant: SlotPlant, baseTicks: number): number {
+  let ticks: number;
+
   if (plant.stamina <= 0) {
-    return baseTicks * TIRED_RATE_MULTIPLIER;
+    ticks = baseTicks * TIRED_RATE_MULTIPLIER;
+  } else if (plant.buffTicksRemaining > 0) {
+    ticks = Math.round(baseTicks / PLANT_MATTER_BUFF_RATE_MULTIPLIER);
+  } else {
+    ticks = baseTicks;
   }
 
-  if (plant.buffTicksRemaining > 0) {
-    return Math.round(baseTicks / PLANT_MATTER_BUFF_RATE_MULTIPLIER);
+  if (isPlantMatterOverflowing(room.plantMatter, room.plantMatterOverflowGraceTicks)) {
+    ticks = Math.round(ticks * PLANT_MATTER_OVERFLOW_RATE_MULTIPLIER);
   }
 
-  return baseTicks;
+  return ticks;
 }
 
 export function advanceSunflower(room: RoomState, slot: SlotState) {
@@ -95,7 +110,7 @@ export function advanceSunflower(room: RoomState, slot: SlotState) {
   // negative, it just sits at 0 (tired) until repaired.
   slot.plant.stamina = Math.max(0, slot.plant.stamina - SUNFLOWER_STAMINA_DRAIN_PER_PROC);
 
-  slot.plant.sunTimer = effectiveRate(slot.plant, def.intervalTicks);
+  slot.plant.sunTimer = effectiveRate(room, slot.plant, def.intervalTicks);
 }
 
 export function advancePeashooter(room: RoomState, slot: SlotState) {
@@ -132,7 +147,7 @@ export function advancePeashooter(room: RoomState, slot: SlotState) {
 
   slot.plant.stamina = Math.max(0, slot.plant.stamina - PEASHOOTER_STAMINA_DRAIN_PER_SHOT);
 
-  slot.plant.cooldown = effectiveRate(slot.plant, PLANT_DEFS.peashooter.cooldownTicks);
+  slot.plant.cooldown = effectiveRate(room, slot.plant, PLANT_DEFS.peashooter.cooldownTicks);
 }
 
 // Wall-nut is a pure blocker - it has no per-tick behavior of its own. Zombies

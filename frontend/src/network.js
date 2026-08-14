@@ -5,6 +5,8 @@ let socket = null;
 let latestState = {
   sun: {},
   plantMatter: 0,
+  plantMatterMax: 0,
+  plantMatterOverflow: { over: false, graceTicksRemaining: 0, active: false },
   slots: [],
   projectiles: [],
   birdProjectiles: [],
@@ -69,6 +71,8 @@ function normalizeState(payload) {
   return {
     sun: normalizeSun(payload?.sun),
     plantMatter: Number.isFinite(payload?.plantMatter) ? payload.plantMatter : 0,
+    plantMatterMax: Number.isFinite(payload?.plantMatterMax) ? payload.plantMatterMax : 0,
+    plantMatterOverflow: normalizePlantMatterOverflow(payload?.plantMatterOverflow),
     slots: normalizeSlots(payload?.slots),
     projectiles: normalizeProjectiles(payload?.projectiles),
     birdProjectiles: normalizeBirdProjectiles(payload?.birdProjectiles),
@@ -278,6 +282,21 @@ function normalizePlantDefs(plantDefs) {
       ])
       .filter(([, def]) => Number.isFinite(def.cost)),
   );
+}
+
+// Shared-pool overflow state. Defaults to "not overflowing" so a client
+// talking to a backend that predates this field behaves as it did before
+// rather than flashing a penalty warning it can't explain.
+function normalizePlantMatterOverflow(overflow) {
+  if (!overflow || typeof overflow !== 'object') {
+    return { over: false, graceTicksRemaining: 0, active: false };
+  }
+
+  return {
+    over: Boolean(overflow.over),
+    graceTicksRemaining: Number.isFinite(overflow.graceTicksRemaining) ? overflow.graceTicksRemaining : 0,
+    active: Boolean(overflow.active),
+  };
 }
 
 // Board geometry the client renders against but can't derive — currently just

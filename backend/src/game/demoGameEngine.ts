@@ -40,6 +40,12 @@ function runDemoRoomTick(room: RoomState) {
   // back to a large constant, mirroring the DEMO_SUN treatment of per-player
   // purses below.
   room.plantMatter = DEMO_PLANT_MATTER;
+  // Note there is deliberately no advancePlantMatterOverflow step in this
+  // tick, unlike the one- and two-player engines. The line above keeps the
+  // pool permanently over PLANT_MATTER_SOFT_MAX, so ticking the grace down
+  // would leave every plant in the showcase running at half speed forever.
+  // Omitting the step keeps the grace at its initial full value, which reads
+  // as "never overflowing" — the debuff simply does not exist in demo.
 }
 
 export function initializePlayerSun(room: RoomState, playerId: string) {

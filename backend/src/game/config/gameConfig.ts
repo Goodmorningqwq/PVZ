@@ -102,6 +102,33 @@ export const PLANT_MATTER_BUFF_COST_MULTIPLIER = 2;
 export const PLANT_MATTER_BUFF_RATE_MULTIPLIER = 1.5;
 export const PLANT_MATTER_BUFF_DURATION_TICKS = 20 * TICK_RATE;
 
+// Plant matter overflow. The pool used to be uncapped, so the optimal play was
+// simply to hoard: collect everything, spend nothing, never be short. This
+// gives hoarding a cost.
+//
+// Going over PLANT_MATTER_SOFT_MAX doesn't bite immediately — you get
+// PLANT_MATTER_OVERFLOW_GRACE_TICKS to spend back down first, so a big drop
+// from a cleared wave isn't an instant punishment for playing well. Sit over
+// the cap past the grace and every plant slows by
+// PLANT_MATTER_OVERFLOW_RATE_MULTIPLIER until you spend back under.
+//
+// The cap is soft: matter still accumulates past it. The penalty is the
+// pressure, not a hard ceiling, so you never silently lose a pickup you
+// collected.
+//
+// 2x is deliberately gentler than the 4x tired penalty — overflow hits every
+// plant on the board at once, where tired hits one.
+export const PLANT_MATTER_SOFT_MAX = 400;
+export const PLANT_MATTER_OVERFLOW_GRACE_TICKS = 10 * TICK_RATE;
+export const PLANT_MATTER_OVERFLOW_RATE_MULTIPLIER = 2;
+
+// Pure numeric predicate rather than one taking RoomState: plant behaviors and
+// the engine both need it, and routing it through either of those modules
+// would make them import each other.
+export function isPlantMatterOverflowing(plantMatter: number, graceTicksRemaining: number): boolean {
+  return plantMatter > PLANT_MATTER_SOFT_MAX && graceTicksRemaining <= 0;
+}
+
 // Shovel / plant removal. Removing a plant refunds a fraction of its original
 // sun cost, floored to a whole number. The refund goes back to the plant's
 // *owner* (the player who paid for it), not to whoever swung the shovel —

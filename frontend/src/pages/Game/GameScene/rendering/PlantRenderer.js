@@ -12,6 +12,12 @@ const IDLE_STATE = 'idle';
 // client tint logic mirrors that same priority defensively).
 const TIRED_TINT = 0x8a95a6;
 const BUFFED_TINT = 0xffe08a;
+// Plant matter overflow: a sickly over-fed green, distinct from both the grey
+// of tired and the gold of buffed. Ranks below tired (a tired plant is the
+// more urgent problem and the one you can actually fix by clicking it) but
+// above buffed, since while overflowing a "buffed" plant is still net slower
+// than normal and showing it as gold would be a lie.
+const OVERFLOWED_TINT = 0x9fbf6a;
 
 function normalizePlantName(entityType) {
   return String(entityType ?? '').toLowerCase();
@@ -82,6 +88,8 @@ export class PlantRenderer extends BaseRenderer {
 
     if (entity.tired) {
       activeSprite.sprite.setTint(TIRED_TINT);
+    } else if (entity.overflowed) {
+      activeSprite.sprite.setTint(OVERFLOWED_TINT);
     } else if (entity.buffed) {
       activeSprite.sprite.setTint(BUFFED_TINT);
     } else {

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { SLOT_COUNT, LANE_COUNT, TICK_RATE, getLaneY, getSlotX } from '../game/config/gameConfig.js';
+import { SLOT_COUNT, LANE_COUNT, PLANT_MATTER_OVERFLOW_GRACE_TICKS, TICK_RATE, getLaneY, getSlotX } from '../game/config/gameConfig.js';
 import { ORCHESTRATION_STEPS_BY_DIFFICULTY } from '../game/config/orchestrationSteps.js';
 import { RoomDifficulty, RoomMode, RoomState, SlotState } from '../game/types.js';
 
@@ -54,6 +54,8 @@ export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer', di
     plantMatterPickups: [],
     sun: {},
     plantMatter: 0,
+    // Starts full: a fresh room is at 0 matter, nowhere near the cap.
+    plantMatterOverflowGraceTicks: PLANT_MATTER_OVERFLOW_GRACE_TICKS,
     tick: 0,
     gameOver: false,
     orchestrationStepIndex: 0,

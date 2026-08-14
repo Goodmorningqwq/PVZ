@@ -11,6 +11,9 @@ import {
   PLANT_MATTER_PICKUP_LIFETIME_TICKS,
   PLANT_MATTER_PICKUP_RADIUS,
   PLANT_MATTER_REPAIR_COST,
+  PLANT_MATTER_SOFT_MAX,
+  PLANT_MATTER_OVERFLOW_GRACE_TICKS,
+  isPlantMatterOverflowing,
   PLANT_REMOVAL_REFUND_FRACTION,
   STARTING_SUN,
   SUN_PICKUP_RADIUS,
@@ -156,6 +159,17 @@ export function broadcastState(room: RoomState) {
     })),
     sun: { ...room.sun },
     plantMatter: room.plantMatter,
+    // Overflow is a property of the shared pool, not of any one plant, so it
+    // rides on the room rather than being repeated as a per-plant boolean in
+    // serializeSlots the way tired/buffed are. The client needs all three:
+    // the cap to draw the bar against, `over` to warn before the penalty
+    // lands, and the countdown to show how long is left to spend down.
+    plantMatterMax: PLANT_MATTER_SOFT_MAX,
+    plantMatterOverflow: {
+      over: room.plantMatter > PLANT_MATTER_SOFT_MAX,
+      graceTicksRemaining: room.plantMatterOverflowGraceTicks,
+      active: isPlantMatterOverflowing(room.plantMatter, room.plantMatterOverflowGraceTicks),
+    },
     plantDefs: PLANT_INFO,
     // Board geometry the client can't derive from the slot list alone. Slots
     // already carry their own x/y, so the client needs no layout formulas of
@@ -594,6 +608,24 @@ export function fireSlingshot(room: RoomState, playerId: string, dx: number, dy:
   room.slingshotCooldown = SLINGSHOT_COOLDOWN_TICKS;
 
   return { success: true };
+}
+
+// Drains the overflow grace while the shared pool is over its soft cap, and
+// refills it the instant it isn't. Refilling (rather than resuming) is
+// deliberate: spending back under the cap should fully clear the threat, not
+// leave a half-spent timer that punishes the next collection.
+//
+// Deliberately NOT part of demo mode's tick — demo pins plantMatter to a huge
+// constant every frame, so the debuff would be permanently active there and
+// every plant in the showcase would crawl. Leaving the step out keeps the
+// grace at its initial full value, which reads as "never overflowing".
+export function advancePlantMatterOverflow(room: RoomState) {
+  if (room.plantMatter > PLANT_MATTER_SOFT_MAX) {
+    room.plantMatterOverflowGraceTicks = Math.max(0, room.plantMatterOverflowGraceTicks - 1);
+    return;
+  }
+
+  room.plantMatterOverflowGraceTicks = PLANT_MATTER_OVERFLOW_GRACE_TICKS;
 }
 
 export function advanceSlingshotCooldown(room: RoomState) {

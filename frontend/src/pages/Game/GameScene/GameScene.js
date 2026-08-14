@@ -145,10 +145,14 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    const plantMatterOverflow = latestState?.plantMatterOverflow ?? { over: false, graceTicksRemaining: 0, active: false };
+
     this.game.events.emit('hud-update', {
       tick,
       sun: normalizeSun(latestState?.sun),
       plantMatter: Number.isFinite(latestState?.plantMatter) ? latestState.plantMatter : 0,
+      plantMatterMax: Number.isFinite(latestState?.plantMatterMax) ? latestState.plantMatterMax : 0,
+      plantMatterOverflow,
       plantDefs: latestState?.plantDefs && typeof latestState.plantDefs === 'object' ? latestState.plantDefs : {},
       wave: Number.isFinite(latestState?.wave) ? latestState.wave : 0,
       waveStatus: latestState?.waveStatus || 'pending',
@@ -168,6 +172,9 @@ export default class GameScene extends Phaser.Scene {
         staminaMax: slot.plant.staminaMax,
         tired: slot.plant.tired,
         buffed: slot.plant.buffed,
+        // Room-wide, so it's stamped onto every plant here rather than sent
+        // per-plant on the wire — the renderer only knows about entities.
+        overflowed: plantMatterOverflow.active,
       }));
 
     this.syncSprites(
