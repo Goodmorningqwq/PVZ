@@ -1,5 +1,17 @@
 export const TOWER_COLOR = 0x3f8f4a;
 export const ZOMBIE_COLOR = 0x8a6242;
+// Boss-tier zombies (ZOMBIE_DEFS entries with boss: true) get a darker, redder
+// body so they read as a different threat class at a glance rather than just
+// "a bigger brown rectangle".
+export const BOSS_ZOMBIE_COLOR = 0x7a3b2c;
+// Fallback body radius for a zombie whose state_update predates the per-type
+// `radius` field. Matches ZOMBIE_RADIUS in the backend's gameConfig.ts.
+export const ZOMBIE_DEFAULT_RADIUS = 16;
+// The old hardcoded body was 40x68 at radius 16, so deriving size from radius
+// with these ratios leaves ordinary zombies pixel-identical while letting a
+// brute actually look like one.
+export const ZOMBIE_BODY_WIDTH_PER_RADIUS = 2.5;
+export const ZOMBIE_BODY_HEIGHT_PER_RADIUS = 4.25;
 export const PROJECTILE_COLOR = 0x4caf50;
 // Softer, warmer palette than the original near-black green — chosen to sit
 // visually closer to the white-card/purple-gradient theme used everywhere

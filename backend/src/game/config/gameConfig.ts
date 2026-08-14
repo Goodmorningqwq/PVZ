@@ -37,6 +37,10 @@ export function getSlotX(col: number): number {
 export const TICK_RATE = Number(process.env.TICK_RATE || 20);
 export const STARTING_SUN = 150;
 
+// Defaults for a rank-and-file zombie. Every ZOMBIE_DEFS entry restates these
+// explicitly rather than inheriting them, so a def is a complete description of
+// its zombie and adding a type can't silently pick up a value nobody chose for
+// it. Kept exported because the client mirrors the base radius for hit-tests.
 export const ZOMBIE_RADIUS = 16;
 export const ZOMBIE_CHOMP_DAMAGE = 20;
 export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
@@ -59,16 +63,51 @@ export const SUN_PICKUP_LIFETIME_TICKS = 20 * TICK_RATE;
 export const SUN_PICKUP_OFFSET_Y = -34;
 export const SUN_PICKUP_OFFSET_X_JITTER = 16; // +/- this, randomized per spawn
 
+// Every zombie type, and the complete set of stats that describe one. `radius`,
+// `chompDamage` and `chompIntervalTicks` used to be global constants applied to
+// all zombies alike; they're per-type now so a heavier zombie can genuinely be
+// bigger and hit harder rather than just having more HP.
+//
+// `boss: true` marks a type as a set-piece rather than rank-and-file. It drives
+// presentation only — an HP bar instead of a bare number, a bigger sprite — and
+// carries no mechanical weight of its own, so a future boss just sets the flag
+// and picks its own stats.
 export const ZOMBIE_DEFS = {
   shambler: {
     hp: 20,
     speed: 1,
     label: 'Shambler',
+    radius: ZOMBIE_RADIUS,
+    chompDamage: ZOMBIE_CHOMP_DAMAGE,
+    chompIntervalTicks: ZOMBIE_CHOMP_INTERVAL_TICKS,
+    boss: false,
   },
   runner: {
     hp: 12,
     speed: 2,
     label: 'Runner',
+    radius: ZOMBIE_RADIUS,
+    chompDamage: ZOMBIE_CHOMP_DAMAGE,
+    chompIntervalTicks: ZOMBIE_CHOMP_INTERVAL_TICKS,
+    boss: false,
+  },
+  // First boss-tier zombie. Named for what it is rather than the role it
+  // plays: ZOMBIE_DEFS keys are species, so calling this one `boss` would
+  // leave a second boss with nowhere to go.
+  //
+  // Tuned as a wall that has to be focused down rather than a fast threat.
+  // 400 HP is 20 shamblers' worth — roughly 20 peashooter hits, or 7 well
+  // centred slingshot shots. Slow enough (0.3 vs the shambler's 1) that a
+  // prepared lane has time to work, but its chomp kills a peashooter in two
+  // bites instead of five, so an unprepared lane collapses fast.
+  brute: {
+    hp: 400,
+    speed: 0.3,
+    label: 'Brute',
+    radius: 30,
+    chompDamage: 60,
+    chompIntervalTicks: Math.round(TICK_RATE * 1.4),
+    boss: true,
   },
 } as const;
 

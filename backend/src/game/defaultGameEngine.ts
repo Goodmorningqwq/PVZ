@@ -19,7 +19,6 @@ import {
   SUN_PICKUP_RADIUS,
   TICK_RATE,
   ZOMBIE_DEFS,
-  ZOMBIE_RADIUS,
   ZOMBIE_SPAWN_X,
   LANE_COUNT,
   getLaneY,
@@ -142,6 +141,12 @@ export function broadcastState(room: RoomState) {
       x: zombie.x,
       y: zombie.y,
       hp: zombie.hp,
+      // Presentation data derived from the def rather than stored per zombie.
+      // maxHp lets the client draw a proportional HP bar instead of a bare
+      // number, which only reads as meaningful on something with a big pool.
+      maxHp: ZOMBIE_DEFS[zombie.type].hp,
+      radius: ZOMBIE_DEFS[zombie.type].radius,
+      boss: ZOMBIE_DEFS[zombie.type].boss,
     })),
     sunPickups: room.sunPickups.map((pickup) => ({
       id: pickup.id,
@@ -475,7 +480,7 @@ export function advanceProjectiles(room: RoomState) {
         continue;
       }
 
-      const combinedRadius = projectileDef.radius + ZOMBIE_RADIUS;
+      const combinedRadius = projectileDef.radius + ZOMBIE_DEFS[zombie.type].radius;
       const fraction = sweptCircleHitFraction(startX, startY, endX, endY, zombie.x, zombie.y, combinedRadius);
       if (fraction === null) {
         continue;
@@ -653,10 +658,12 @@ export function advanceBirdProjectiles(room: RoomState) {
     //
     // Range is measured to the zombie's *surface*, not its centre: a zombie
     // whose body overlaps the blast is caught by it. This matches the pea,
-    // which tests against `projectileDef.radius + ZOMBIE_RADIUS`
+    // which tests against `projectileDef.radius + the zombie's own radius`
     // (advanceProjectiles). Testing centre-to-centre against splashRadius
     // alone — as this did before — made the bird's effective reach a full
-    // ZOMBIE_RADIUS tighter than the pea's for no stated reason.
+    // zombie-radius tighter than the pea's for no stated reason. Using the
+    // per-type radius also means a brute's bulk genuinely makes it easier to
+    // clip with a near miss.
     //
     // Damage then ramps down linearly across that surface distance, so a
     // centred hit is meaningfully better than a glancing one.
@@ -664,7 +671,7 @@ export function advanceBirdProjectiles(room: RoomState) {
       const zombieDx = zombie.x - bird.targetX;
       const zombieDy = zombie.y - bird.targetY;
       const centreDistance = Math.sqrt(zombieDx * zombieDx + zombieDy * zombieDy);
-      const surfaceDistance = Math.max(0, centreDistance - ZOMBIE_RADIUS);
+      const surfaceDistance = Math.max(0, centreDistance - ZOMBIE_DEFS[zombie.type].radius);
 
       if (surfaceDistance > bird.splashRadius) {
         continue;
