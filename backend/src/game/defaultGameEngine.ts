@@ -36,6 +36,7 @@ import {
   SLINGSHOT_ZMAX_PER_100PX,
   SLINGSHOT_DAMAGE,
   SLINGSHOT_SPLASH_RADIUS,
+  SLINGSHOT_SPLASH_MIN_DAMAGE_FRACTION,
 } from './config/slingshotConfig.js';
 import { RoomState, SlotState, SlotProjectileState, BirdProjectileState, PlantType, WaveStatus, ZombieState, ZombieType } from './types.js';
 import { PLANT_BEHAVIORS } from './plants/plantBehaviors.js';
@@ -124,6 +125,11 @@ export function broadcastState(room: RoomState) {
       z: birdHeightAt(bird, room.tick),
       ownerId: bird.ownerId,
       damage: bird.damage,
+      // Sent so the client can size the impact flash to the real blast, and
+      // so the two can't drift if the radius is ever retuned.
+      splashRadius: bird.splashRadius,
+      targetX: bird.targetX,
+      targetY: bird.targetY,
     })),
     slingshotCooldown: room.slingshotCooldown,
     zombies: room.zombies.map((zombie) => ({
@@ -612,14 +618,31 @@ export function advanceBirdProjectiles(room: RoomState) {
     // Landed - splash damage to every zombie within range of the impact
     // point, regardless of lane (this is an AOE lob, not a lane-locked shot
     // like the peashooter's pea, so it can hit zombies in adjacent rows too).
+    //
+    // Range is measured to the zombie's *surface*, not its centre: a zombie
+    // whose body overlaps the blast is caught by it. This matches the pea,
+    // which tests against `projectileDef.radius + ZOMBIE_RADIUS`
+    // (advanceProjectiles). Testing centre-to-centre against splashRadius
+    // alone — as this did before — made the bird's effective reach a full
+    // ZOMBIE_RADIUS tighter than the pea's for no stated reason.
+    //
+    // Damage then ramps down linearly across that surface distance, so a
+    // centred hit is meaningfully better than a glancing one.
     for (const zombie of room.zombies) {
       const zombieDx = zombie.x - bird.targetX;
       const zombieDy = zombie.y - bird.targetY;
-      if (Math.sqrt(zombieDx * zombieDx + zombieDy * zombieDy) > bird.splashRadius) {
+      const centreDistance = Math.sqrt(zombieDx * zombieDx + zombieDy * zombieDy);
+      const surfaceDistance = Math.max(0, centreDistance - ZOMBIE_RADIUS);
+
+      if (surfaceDistance > bird.splashRadius) {
         continue;
       }
 
-      zombie.hp -= bird.damage;
+      // 1 at the impact point, falling to SPLASH_MIN_DAMAGE_FRACTION at the
+      // edge. splashRadius is always > 0 (it comes from config), so no guard.
+      const falloff = 1 - (1 - SLINGSHOT_SPLASH_MIN_DAMAGE_FRACTION) * (surfaceDistance / bird.splashRadius);
+
+      zombie.hp -= Math.round(bird.damage * falloff);
       if (zombie.hp <= 0) {
         dropPlantMatterFor(room, zombie);
       }

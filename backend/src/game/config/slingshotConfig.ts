@@ -28,6 +28,13 @@ export const SLINGSHOT_COOLDOWN_TICKS = 60; // ~3s at the default 20 TICK_RATE
 export const SLINGSHOT_DAMAGE = 60;
 export const SLINGSHOT_SPLASH_RADIUS = 50;
 
+// Splash falloff. A direct hit deals the full SLINGSHOT_DAMAGE; a zombie
+// clipped at the very edge of the blast deals this fraction of it, with a
+// linear ramp between. Previously every zombie inside the radius took the full
+// 60 regardless of distance, which made aim precision worth nothing — a lazy
+// shot landing near a cluster was exactly as good as a centred one.
+export const SLINGSHOT_SPLASH_MIN_DAMAGE_FRACTION = 0.35;
+
 // Flight duration and arc height both scale with travel distance, so longer
 // shots take a bit longer and arc a bit higher rather than teleporting flat.
 export const SLINGSHOT_BASE_FLIGHT_TICKS = 14;

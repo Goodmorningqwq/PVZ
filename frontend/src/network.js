@@ -193,6 +193,13 @@ function normalizeBirdProjectiles(birdProjectiles) {
         z: Number.isFinite(bird.z) ? bird.z : 0,
         ownerId: String(bird.ownerId ?? ''),
         damage: Number(bird.damage),
+        // Impact point and blast size, for the landing VFX. Unlike zombies
+        // (which are spread through wholesale), this normalizer is an explicit
+        // allow-list, so any new bird field has to be named here or it is
+        // silently dropped before the scene ever sees it.
+        splashRadius: Number.isFinite(bird.splashRadius) ? bird.splashRadius : 0,
+        targetX: Number.isFinite(bird.targetX) ? bird.targetX : Number(bird.x),
+        targetY: Number.isFinite(bird.targetY) ? bird.targetY : Number(bird.y),
       };
     })
     .filter((bird) => bird && bird.id && Number.isFinite(bird.x) && Number.isFinite(bird.y));

@@ -147,11 +147,41 @@ export class SlingshotRenderer extends BaseRenderer {
     cached.sprite.setPosition(entity.x, entity.y - heightScreenOffset(z));
     cached.sprite.setScale(heightScale(z));
 
+    // Remember where this shot is going and how big its blast is, so cleanup()
+    // can draw the impact without the server having to send a separate
+    // "it landed" event. The server drops a bird from state on the tick it
+    // lands and for no other reason, so cleanup is exactly the landing moment.
+    cached.impact = {
+      x: Number.isFinite(entity.targetX) ? entity.targetX : entity.x,
+      y: Number.isFinite(entity.targetY) ? entity.targetY : entity.y,
+      radius: Number.isFinite(entity.splashRadius) ? entity.splashRadius : 0,
+    };
+
     return cached.sprite;
+  }
+
+  // Expanding ring at the blast, sized to the server's actual splashRadius so
+  // players can see the area that was hit and learn the falloff rather than
+  // guessing at it.
+  playImpact({ x, y, radius }) {
+    const ring = this.scene.add.circle(x, y, radius, 0xffd9a0, 0.4).setStrokeStyle(3, 0xffb35c, 0.95);
+    ring.setScale(0.35);
+
+    this.scene.tweens.add({
+      targets: ring,
+      scale: 1,
+      alpha: 0,
+      duration: 320,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
   }
 
   cleanup(id) {
     const cached = this.spriteCache.get(id);
+    if (cached?.impact && cached.impact.radius > 0) {
+      this.playImpact(cached.impact);
+    }
     cached?.shadow?.destroy();
     super.cleanup(id);
   }
