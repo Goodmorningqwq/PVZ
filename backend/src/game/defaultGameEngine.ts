@@ -56,6 +56,29 @@ const PLANT_INFO = Object.fromEntries(
 // to prevent.
 export const roomLaneY = getLaneY;
 
+// 100% drop chance on kill (not on breach — a breaching zombie ends the game
+// immediately, so there's nothing left to collect). Amount is randomized per
+// kill within the configured range.
+//
+// Shared by every kill source so they can't drift apart: peas
+// (advanceProjectiles) and slingshot splash (advanceBirdProjectiles) held
+// byte-identical copies of this before it was extracted, and a boss with its
+// own death reward would have been a third.
+function dropPlantMatterFor(room: RoomState, zombie: ZombieState) {
+  const amount = Math.round(
+    PLANT_MATTER_DROP_MIN + Math.random() * (PLANT_MATTER_DROP_MAX - PLANT_MATTER_DROP_MIN),
+  );
+
+  room.plantMatterPickups.push({
+    id: `pm-${uuidv4()}`,
+    laneIndex: zombie.laneIndex,
+    x: zombie.x,
+    y: zombie.y,
+    amount,
+    ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
+  });
+}
+
 export function initializePlayerSun(room: RoomState, playerId: string) {
   room.sun[playerId] = room.sun[playerId] ?? STARTING_SUN;
 }
@@ -451,21 +474,8 @@ export function advanceProjectiles(room: RoomState) {
       projectile.y = startY + hitFraction * (endY - startY);
       hitZombie.hp -= projectileDef.damage;
 
-      // 100% drop chance on kill (not on breach — a breaching zombie ends
-      // the game immediately, so there's nothing to collect anyway). Amount
-      // is randomized per kill within the configured range.
       if (hitZombie.hp <= 0) {
-        const amount = Math.round(
-          PLANT_MATTER_DROP_MIN + Math.random() * (PLANT_MATTER_DROP_MAX - PLANT_MATTER_DROP_MIN),
-        );
-        room.plantMatterPickups.push({
-          id: `pm-${uuidv4()}`,
-          laneIndex: hitZombie.laneIndex,
-          x: hitZombie.x,
-          y: hitZombie.y,
-          amount,
-          ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
-        });
+        dropPlantMatterFor(room, hitZombie);
       }
 
       continue;
@@ -611,17 +621,7 @@ export function advanceBirdProjectiles(room: RoomState) {
 
       zombie.hp -= bird.damage;
       if (zombie.hp <= 0) {
-        const amount = Math.round(
-          PLANT_MATTER_DROP_MIN + Math.random() * (PLANT_MATTER_DROP_MAX - PLANT_MATTER_DROP_MIN),
-        );
-        room.plantMatterPickups.push({
-          id: `pm-${uuidv4()}`,
-          laneIndex: zombie.laneIndex,
-          x: zombie.x,
-          y: zombie.y,
-          amount,
-          ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
-        });
+        dropPlantMatterFor(room, zombie);
       }
     }
   }

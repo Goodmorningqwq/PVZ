@@ -336,14 +336,21 @@ VITE_LOG_LEVEL=debug
 
 **Backend (.env):**
 ```
-SUPABASE_URL=https://zvsctvjvijluwnoiheyr.supabase.co
-SUPABASE_KEY=sb_publishable_mrR_Benklc9Zsnwc1MxTyA_YYFe_JtV
-UPSTASH_REDIS_REST_URL=https://harmless-sculpin-147162.upstash.io
-UPSTASH_REDIS_REST_TOKEN=gQAAAAAAAj7aAAIgcDFiYzg1NThmZDk1YTg0NjA5YWYyZmI3NmNmZDNmM2M3Yg
+SUPABASE_URL=<your Supabase project URL>
+SUPABASE_KEY=<your Supabase anon/publishable key>
+UPSTASH_REDIS_REST_URL=<your Upstash REST URL>
+UPSTASH_REDIS_REST_TOKEN=<your Upstash REST token>
 PORT=3000
 NODE_ENV=development
 TICK_RATE=15
 ```
+
+> **Never commit real values here.** Copy them from the Supabase and Upstash
+> dashboards into your local `.env` (which is gitignored) and into the Render
+> dashboard for production. Real credentials — including a live Upstash REST
+> bearer token — were previously committed to this file in a public repo; they
+> remain readable in git history, so they must be **rotated in the provider
+> dashboards**, not merely deleted from the current revision.
 
 #### 4. Run Locally (Two Terminals)
 

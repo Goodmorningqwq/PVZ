@@ -13,7 +13,7 @@ import {
   TIRED_RATE_MULTIPLIER,
 } from '../config/gameConfig.js';
 import PROJECTILE_DEFS from '../config/projectileDefs.json' with { type: 'json' };
-import { PlantType, RoomState, SlotProjectileType, SlotState } from '../types.js';
+import { PlantType, RoomState, SlotPlant, SlotProjectileType, SlotState } from '../types.js';
 
 // Every plant type must have an entry here - this is the single source of
 // truth for "what plant types exist" that everything else (advancePlants,
@@ -22,6 +22,32 @@ export const VALID_PLANTS: PlantType[] = Object.keys(PLANT_DEFS) as PlantType[];
 
 export function isValidPlantType(value: unknown): value is PlantType {
   return typeof value === 'string' && (VALID_PLANTS as string[]).includes(value);
+}
+
+// Turns a plant's base action interval (sunflower's sun timer, peashooter's
+// fire cooldown) into the interval it should actually use given its current
+// status. Every plant behavior that re-arms a timer goes through here.
+//
+// Tired takes priority over buffed (see the buffTicksRemaining comment in
+// types.ts): a plant that runs itself down mid-buff drops straight to the slow
+// tired rate rather than keeping the fast rate until it's repaired. Buff
+// shortens the interval (acts more often); tired lengthens it (acts less).
+//
+// Extracted from advanceSunflower and advancePeashooter, which held
+// byte-identical copies of this ternary. Keeping it in one place matters more
+// than it looks: status tiers get added over time, and a nested ternary
+// duplicated per behavior is how you end up with a plant type that quietly
+// ignores one of them.
+export function effectiveRate(plant: SlotPlant, baseTicks: number): number {
+  if (plant.stamina <= 0) {
+    return baseTicks * TIRED_RATE_MULTIPLIER;
+  }
+
+  if (plant.buffTicksRemaining > 0) {
+    return Math.round(baseTicks / PLANT_MATTER_BUFF_RATE_MULTIPLIER);
+  }
+
+  return baseTicks;
 }
 
 export function advanceSunflower(room: RoomState, slot: SlotState) {
@@ -69,19 +95,7 @@ export function advanceSunflower(room: RoomState, slot: SlotState) {
   // negative, it just sits at 0 (tired) until repaired.
   slot.plant.stamina = Math.max(0, slot.plant.stamina - SUNFLOWER_STAMINA_DRAIN_PER_PROC);
 
-  // Tired takes priority over buffed (see the buffTicksRemaining comment in
-  // types.ts) - a plant that runs itself down mid-buff falls straight to the
-  // slow tired rate. Buff shortens the interval (faster procs); tired
-  // lengthens it (slower procs).
-  const isTired = slot.plant.stamina <= 0;
-  const isBuffed = !isTired && slot.plant.buffTicksRemaining > 0;
-  const effectiveInterval = isTired
-    ? def.intervalTicks * TIRED_RATE_MULTIPLIER
-    : isBuffed
-      ? Math.round(def.intervalTicks / PLANT_MATTER_BUFF_RATE_MULTIPLIER)
-      : def.intervalTicks;
-
-  slot.plant.sunTimer = effectiveInterval;
+  slot.plant.sunTimer = effectiveRate(slot.plant, def.intervalTicks);
 }
 
 export function advancePeashooter(room: RoomState, slot: SlotState) {
@@ -118,14 +132,7 @@ export function advancePeashooter(room: RoomState, slot: SlotState) {
 
   slot.plant.stamina = Math.max(0, slot.plant.stamina - PEASHOOTER_STAMINA_DRAIN_PER_SHOT);
 
-  const isTired = slot.plant.stamina <= 0;
-  const isBuffed = !isTired && slot.plant.buffTicksRemaining > 0;
-  const baseCooldown = PLANT_DEFS.peashooter.cooldownTicks;
-  slot.plant.cooldown = isTired
-    ? baseCooldown * TIRED_RATE_MULTIPLIER
-    : isBuffed
-      ? Math.round(baseCooldown / PLANT_MATTER_BUFF_RATE_MULTIPLIER)
-      : baseCooldown;
+  slot.plant.cooldown = effectiveRate(slot.plant, PLANT_DEFS.peashooter.cooldownTicks);
 }
 
 // Wall-nut is a pure blocker - it has no per-tick behavior of its own. Zombies

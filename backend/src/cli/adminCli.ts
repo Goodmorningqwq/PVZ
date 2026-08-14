@@ -1,15 +1,10 @@
 import readline from 'node:readline';
 import { forceGameOver, spawnZombieInLane } from '../game/defaultGameEngine.js';
-import { ZOMBIE_DEFS } from '../game/config/gameConfig.js';
-import { ZombieType } from '../game/types.js';
+import { isValidZombieType } from '../game/zombies/zombieBehaviors.js';
 import { advanceTwoPlayerRoomTicks, setPlayerSun as setTwoPlayerPlayerSun } from '../game/twoPlayerGameEngine.js';
 import { advanceOnePlayerRoomTicks, setPlayerSun as setOnePlayerPlayerSun } from '../game/onePlayerGameEngine.js';
 import { advanceDemoRoomTicks, setPlayerSun as setDemoPlayerSun } from '../game/demoGameEngine.js';
 import { getRoom, getRooms } from '../room/roomStore.js';
-
-function isZombieType(value: string): value is ZombieType {
-  return value in ZOMBIE_DEFS;
-}
 
 type AdminCliContext = {
   emitState: (roomId: string) => void;
@@ -127,7 +122,7 @@ export function startAdminCli(context: AdminCliContext) {
           const laneIndex = Number(laneIndexText);
           const type = typeText ?? 'shambler';
           const room = roomId ? getRoom(roomId) : null;
-          if (!room || !Number.isFinite(laneIndex) || !isZombieType(type)) {
+          if (!room || !Number.isFinite(laneIndex) || !isValidZombieType(type)) {
             console.log('Usage: spawn-zombie <roomId> <laneIndex> [type]');
             break;
           }
