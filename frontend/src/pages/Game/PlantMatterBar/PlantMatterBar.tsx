@@ -28,10 +28,6 @@ type PlantMatterBarProps = {
 // real consequences so the bar has to draw against the actual threshold.
 const FALLBACK_BAR_MAX = 400;
 
-// Server ticks per second — used only to render the grace countdown as
-// seconds. Must match TICK_RATE in the backend's gameConfig.ts.
-const TICK_RATE = 20;
-
 export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, onDrop }: PlantMatterBarProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
@@ -39,7 +35,6 @@ export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, 
 
   const barMax = plantMatterMax > 0 ? plantMatterMax : FALLBACK_BAR_MAX;
   const fillPercent = Math.max(0, Math.min(100, (plantMatter / barMax) * 100));
-  const graceSeconds = Math.ceil(overflow.graceTicksRemaining / TICK_RATE);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -96,18 +91,10 @@ export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, 
         <span className="plant-matter-bar-max">/{barMax}</span>
       </div>
 
-      {/* Two distinct states: still inside the grace period (a countdown you
-          can act on) versus the penalty actually biting. */}
-      {overflow.over && !overflow.active && (
-        <div className="plant-matter-warning" role="status">
-          Over capacity — spend within {graceSeconds}s
-        </div>
-      )}
-      {overflow.active && (
-        <div className="plant-matter-warning plant-matter-warning--active" role="status">
-          Overloaded — plants slowed
-        </div>
-      )}
+      {/* The overflow warning itself lives in Game.tsx as a centred overlay
+          over the play area, not here. Down in the tools column it was too
+          easy to miss the one thing the player urgently needs to act on. The
+          bar keeps only the colour change, as a persistent at-a-glance cue. */}
       <div
         className={`plant-matter-handle ${isDragging ? 'plant-matter-handle--dragging' : ''}`}
         onPointerDown={handlePointerDown}

@@ -6,7 +6,7 @@ import PlantMatterBar from './PlantMatterBar/PlantMatterBar';
 import SunMeter from './SunMeter/SunMeter';
 import Shovel from './Shovel/Shovel';
 import GameScene from './GameScene/GameScene';
-import { GAME_WIDTH, GAME_HEIGHT, SLOT_RADIUS } from './GameScene/constants';
+import { GAME_WIDTH, GAME_HEIGHT, SERVER_TICK_RATE, SLOT_RADIUS } from './GameScene/constants';
 
 type GameProps = {
   roomId: string;
@@ -355,6 +355,29 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
               ? 'Shovel armed — click a plant to dig it up for a partial refund.'
               : 'Pick a plant above, then click an open slot to place it. Drag the bird on the slingshot and release to fire.'}
           </div>
+
+          {/* Overflow alert, centred over the play area rather than tucked
+              under the plant matter bar. Two escalating states: a countdown
+              you can still act on, then the penalty actually biting. Both are
+              pointer-events: none so they never swallow a board click — the
+              player has to be able to keep planting while it's up. The screen
+              shake that accompanies the second state is a Phaser camera
+              effect driven from GameScene, not CSS. */}
+          {hud.plantMatterOverflow.over && !hud.plantMatterOverflow.active && (
+            <div className="overflow-alert" role="status">
+              <span className="overflow-alert-title">Over capacity</span>
+              <span className="overflow-alert-sub">
+                Spend within {Math.ceil(hud.plantMatterOverflow.graceTicksRemaining / SERVER_TICK_RATE)}s
+              </span>
+            </div>
+          )}
+
+          {hud.plantMatterOverflow.active && (
+            <div className="overflow-alert overflow-alert--active" role="alert">
+              <span className="overflow-alert-title">Use your plant matter</span>
+              <span className="overflow-alert-sub">Plants are slowed</span>
+            </div>
+          )}
 
           {actionToast && <div className="action-toast">{actionToast}</div>}
 

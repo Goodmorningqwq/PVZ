@@ -146,6 +146,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const plantMatterOverflow = latestState?.plantMatterOverflow ?? { over: false, graceTicksRemaining: 0, active: false };
+    this.updateOverflowShake(plantMatterOverflow.active);
 
     this.game.events.emit('hud-update', {
       tick,
@@ -480,6 +481,40 @@ export default class GameScene extends Phaser.Scene {
       plant: selectedPlant,
       slotIndex: slot.index,
     });
+  }
+
+  // Sustained camera shake while the plant matter overflow penalty is live,
+  // paired with the centred alert Game.tsx renders. Phaser's shake takes a
+  // fixed duration, so this re-arms it whenever it lapses rather than firing
+  // one long shake — that keeps it running indefinitely while still stopping
+  // immediately the moment the pool drops back under the cap.
+  //
+  // Intensity is deliberately low. This runs continuously until the player
+  // reacts, so it has to read as "something is wrong" without becoming
+  // unpleasant to look at.
+  updateOverflowShake(active) {
+    const camera = this.cameras?.main;
+    if (!camera) {
+      return;
+    }
+
+    if (!active) {
+      if (camera.shakeEffect?.isRunning) {
+        camera.shakeEffect.reset();
+      }
+      return;
+    }
+
+    // Honour the OS-level reduced-motion setting: the alert still shows, but
+    // a continuous shake is exactly the kind of motion that preference exists
+    // to suppress.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      return;
+    }
+
+    if (!camera.shakeEffect?.isRunning) {
+      camera.shake(700, 0.004);
+    }
   }
 
   drawSlotMarkers() {

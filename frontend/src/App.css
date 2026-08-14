@@ -487,6 +487,75 @@
   overflow: hidden;
 }
 
+/* Overflow alert — centred over the play area. Sits above the canvas but
+   below the game-over backdrop (z-index 10), and never takes pointer events
+   so the player can keep planting while it's showing. */
+.overflow-alert {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 34px;
+  border-radius: 16px;
+  background: rgba(42, 51, 36, 0.82);
+  border: 2px solid #e8c34a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
+.overflow-alert-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  color: #f5d97a;
+}
+
+.overflow-alert-sub {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #d8dccb;
+}
+
+/* Penalty live: red, larger, and pulsing. The canvas shake is separate — it's
+   a Phaser camera effect, so it can't be done here. */
+.overflow-alert--active {
+  border-color: #d6483b;
+  background: rgba(74, 20, 14, 0.86);
+  animation: overflow-alert-pulse 0.9s ease-in-out infinite;
+}
+
+.overflow-alert--active .overflow-alert-title {
+  font-size: 38px;
+  color: #ff8f7a;
+}
+
+.overflow-alert--active .overflow-alert-sub {
+  color: #f0bdb2;
+}
+
+@keyframes overflow-alert-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.06); }
+}
+
+/* Respect a reduced-motion preference: keep the alert, drop the pulse. The
+   camera shake is gated on the same preference in GameScene. */
+@media (prefers-reduced-motion: reduce) {
+  .overflow-alert--active {
+    animation: none;
+  }
+}
+
 /* Overflow: the bar itself goes red once the penalty is live, so the state is
    readable from the tools column without reading the warning text. */
 .plant-matter-bar--overflowing {
@@ -498,19 +567,6 @@
   font-size: 11px;
   font-weight: 400;
   color: #7a8a72;
-}
-
-.plant-matter-warning {
-  font-family: system-ui, sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.3;
-  text-align: center;
-  color: #8a6a1e;
-}
-
-.plant-matter-warning--active {
-  color: #8d3826;
 }
 
 /* Fill turns amber past the cap while the grace period is still running —

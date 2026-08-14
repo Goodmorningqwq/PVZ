@@ -52,7 +52,11 @@ export const ZOMBIE_CHOMP_INTERVAL_TICKS = TICK_RATE;
 // despawns after SUN_PICKUP_LIFETIME_TICKS with no income awarded, mirroring
 // classic PvZ's ~10s sun timeout (tuned to 20s here since collection is
 // hover-based, not click-based, and easier to miss).
-export const SUN_PICKUP_RADIUS = 26; // hover-hit radius, client + server validation
+// Hover-hit radius, validated on both client and server — the client constant
+// in frontend/src/pages/Game/GameScene/constants.js must match. Also drives
+// the rendered sprite size (SUN_SPRITE_SCALE), so raising it grows the art and
+// the hit target together rather than letting them drift apart.
+export const SUN_PICKUP_RADIUS = 30;
 export const SUN_PICKUP_LIFETIME_TICKS = 20 * TICK_RATE;
 // The pickup's resting spot is offset from the sunflower's own slot position
 // (not dead-center on it) so it visually reads as a separate collectible

@@ -28,6 +28,11 @@ export const SLOT_MARKER_COLOR = 0xf2f5ee;
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 400;
 
+// Server ticks per second. Must match TICK_RATE in the backend's
+// gameConfig.ts. Anything converting a tick count the server sent into
+// seconds for display reads this rather than hardcoding 20 again.
+export const SERVER_TICK_RATE = 20;
+
 export const PLANT_SPRITE_SIZE = 3;
 export const ZOMBIE_SPRITE_SIZE = 1;
 export const PROJECTILE_RADIUS = 8;
@@ -48,7 +53,7 @@ export const PLANT_SCALE_MULTIPLIERS = {
 // — must match, since the hover/tap hit-test happens client-side for instant
 // feedback and the server independently re-validates range on 'collect_sun').
 export const SUN_COLOR = 0xffd54f;
-export const SUN_PICKUP_RADIUS = 26;
+export const SUN_PICKUP_RADIUS = 30;
 // The sun art (assets/sprites/ItemTextures/sun/idle/frame-0.png) is a 50x50
 // PNG, so the scale that makes it fill its hit circle is
 // (SUN_PICKUP_RADIUS * 2) / 50.
@@ -107,7 +112,7 @@ export const SLINGSHOT_BASE_FLIGHT_TICKS = 14;
 export const SLINGSHOT_FLIGHT_TICKS_PER_100PX = 6;
 export const SLINGSHOT_ZMAX_BASE = 40;
 export const SLINGSHOT_ZMAX_PER_100PX = 20;
-export const SLINGSHOT_TICK_RATE = 20; // must match backend TICK_RATE default
+export const SLINGSHOT_TICK_RATE = SERVER_TICK_RATE;
 
 export const BIRD_RADIUS = 14;
 export const BIRD_COLOR = 0x2f6fed;
