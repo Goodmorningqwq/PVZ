@@ -4,6 +4,7 @@ import { BACKEND_URL } from './config';
 let socket = null;
 let latestState = {
   sun: {},
+  plantUnlocks: {},
   plantMatter: 0,
   plantMatterMax: 0,
   plantMatterOverflow: { over: false, graceTicksRemaining: 0, active: false },
@@ -70,6 +71,7 @@ function createSocket() {
 function normalizeState(payload) {
   return {
     sun: normalizeSun(payload?.sun),
+    plantUnlocks: normalizePlantUnlocks(payload?.plantUnlocks),
     plantMatter: Number.isFinite(payload?.plantMatter) ? payload.plantMatter : 0,
     plantMatterMax: Number.isFinite(payload?.plantMatterMax) ? payload.plantMatterMax : 0,
     plantMatterOverflow: normalizePlantMatterOverflow(payload?.plantMatterOverflow),
@@ -311,6 +313,23 @@ function normalizeAnchor(anchor) {
   const x = Number(anchor.x);
   const y = Number(anchor.y);
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+// Which plants each player may place, keyed by playerId — same shape as `sun`,
+// and read the same way (each client looks up its own entry). Absent or
+// malformed yields {}, which the shop treats as "no restriction known" rather
+// than "everything is locked": the authoritative check is server-side in
+// placePlant, so a client that can't parse this must not lock the player out.
+function normalizePlantUnlocks(plantUnlocks) {
+  if (!plantUnlocks || typeof plantUnlocks !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(plantUnlocks)
+      .filter(([playerId, types]) => typeof playerId === 'string' && playerId.length > 0 && Array.isArray(types))
+      .map(([playerId, types]) => [playerId, types.map(String).filter(Boolean)]),
+  );
 }
 
 function normalizeSun(sun) {

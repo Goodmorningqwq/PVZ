@@ -14,6 +14,9 @@ import {
   PLANT_MATTER_SOFT_MAX,
   PLANT_MATTER_OVERFLOW_GRACE_TICKS,
   isPlantMatterOverflowing,
+  getDefaultUnlockedPlants,
+  getPlantCooldownTicks,
+  getPlantSunIntervalTicks,
   PLANT_REMOVAL_REFUND_FRACTION,
   STARTING_SUN,
   SUN_PICKUP_RADIUS,
@@ -80,6 +83,29 @@ function dropPlantMatterFor(room: RoomState, zombie: ZombieState) {
     amount,
     ticksRemaining: PLANT_MATTER_PICKUP_LIFETIME_TICKS,
   });
+}
+
+// Seeds a player's placeable plants on join, without clobbering a set that's
+// already there — so a reconnect keeps whatever the player had. Called
+// alongside initializePlayerSun from every join handler.
+//
+// Today every player gets everything (see getDefaultUnlockedPlants), so this
+// changes no behaviour. It exists so the gate in placePlant has something real
+// to check, and so persistence has somewhere to write into later.
+export function initializePlayerUnlocks(room: RoomState, playerId: string) {
+  room.plantUnlocks[playerId] = room.plantUnlocks[playerId] ?? getDefaultUnlockedPlants();
+}
+
+// Admin/testing hook, and the seam persistence will use once profiles exist.
+export function setPlayerUnlocks(room: RoomState, playerId: string, plantTypes: PlantType[]) {
+  room.plantUnlocks[playerId] = [...plantTypes];
+}
+
+export function canPlayerPlace(room: RoomState, playerId: string, plantType: PlantType): boolean {
+  const unlocked = room.plantUnlocks[playerId];
+  // No entry means the player was never initialised — treat as the default set
+  // rather than locking them out of the game entirely.
+  return unlocked ? unlocked.includes(plantType) : getDefaultUnlockedPlants().includes(plantType);
 }
 
 export function initializePlayerSun(room: RoomState, playerId: string) {
@@ -163,6 +189,10 @@ export function broadcastState(room: RoomState) {
       amount: pickup.amount,
     })),
     sun: { ...room.sun },
+    // Same shape and same reasoning as `sun`: sent whole to the room, each
+    // client reads its own entry. Keeps this on the single room-wide broadcast
+    // instead of per-socket payloads.
+    plantUnlocks: { ...room.plantUnlocks },
     plantMatter: room.plantMatter,
     // Overflow is a property of the shared pool, not of any one plant, so it
     // rides on the room rather than being repeated as a per-plant boolean in
@@ -727,11 +757,22 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
     return { success: false, message: 'Slot occupied' };
   }
 
+  // THE entitlement check. It lives here rather than in socketController
+  // because all three room modes funnel through this function (one- and
+  // two-player re-export it verbatim, demo wraps it and only acts on success),
+  // this is the only function that writes slot.plant for a placement, and
+  // playerId is already in scope. The socket layer only validates that the
+  // named plant type *exists* — a hand-crafted message naming an unearned
+  // plant would sail straight past it.
+  if (!canPlayerPlace(room, playerId, plantType)) {
+    return { success: false, message: 'plant_locked' };
+  }
+
   const def = PLANT_DEFS[plantType];
   const currentSun = room.sun[playerId] ?? 0;
 
   if (currentSun < def.cost) {
-    return { success: false, message: 'Not enough sun' };
+    return { success: false, message: 'insufficient_sun' };
   }
 
   room.sun[playerId] = currentSun - def.cost;
@@ -739,8 +780,8 @@ export function placePlant(room: RoomState, playerId: string, plantType: PlantTy
     type: plantType,
     hp: def.hp,
     ownerId: playerId,
-    cooldown: plantType === 'peashooter' ? PLANT_DEFS.peashooter.cooldownTicks : 0,
-    sunTimer: plantType === 'sunflower' ? PLANT_DEFS.sunflower.intervalTicks : 0,
+    cooldown: getPlantCooldownTicks(plantType),
+    sunTimer: getPlantSunIntervalTicks(plantType),
     state: 'idle',
     stamina: def.staminaMax,
     staminaMax: def.staminaMax,

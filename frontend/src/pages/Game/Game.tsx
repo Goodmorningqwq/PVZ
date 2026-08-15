@@ -35,6 +35,7 @@ type PlantMatterOverflow = {
 // (lastRenderedTick) to decide when to redraw.
 type HudState = {
   sun: Record<string, number>;
+  plantUnlocks: Record<string, string[]>;
   plantMatter: number;
   plantMatterMax: number;
   plantMatterOverflow: PlantMatterOverflow;
@@ -51,6 +52,7 @@ type GameOverInfo = {
 
 const initialHud: HudState = {
   sun: {},
+  plantUnlocks: {},
   plantMatter: 0,
   plantMatterMax: 0,
   plantMatterOverflow: { over: false, graceTicksRemaining: 0, active: false },
@@ -68,6 +70,8 @@ const ACTION_REJECTED_MESSAGES: Record<string, string> = {
   no_plant_in_slot: 'Nothing to dig up there.',
   invalid_slot: "That's not a slot.",
   on_cooldown: "Slingshot's still reloading.",
+  plant_locked: "You haven't unlocked that plant yet.",
+  insufficient_sun: 'Not enough sun for that.',
 };
 
 // Actions that surface a toast when the server rejects them. Everything else
@@ -75,7 +79,7 @@ const ACTION_REJECTED_MESSAGES: Record<string, string> = {
 // NETWORKING_CONTRACT_REVISED.md. fire_slingshot's other rejection
 // (pull_too_small) never reaches the server at all - GameScene only emits
 // once the drag clears the arm threshold client-side.
-const TOASTED_ACTIONS = new Set(['use_plant_matter', 'remove_plant', 'fire_slingshot']);
+const TOASTED_ACTIONS = new Set(['use_plant_matter', 'remove_plant', 'fire_slingshot', 'place_plant']);
 
 function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
   if (waveStatus === 'pending') return 'Get ready...';
@@ -238,8 +242,8 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
 
     const offHudUpdate = (() => {
       const handler = (payload: {
-        tick: number;
         sun: Record<string, number>;
+        plantUnlocks: Record<string, string[]>;
         plantMatter: number;
         plantMatterMax: number;
         plantMatterOverflow: PlantMatterOverflow;
@@ -251,6 +255,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         setHud((current) => ({
           ...current,
           sun: payload.sun || {},
+          plantUnlocks: payload.plantUnlocks || {},
           plantMatterMax: Number.isFinite(payload.plantMatterMax) ? payload.plantMatterMax : 0,
           plantMatterOverflow: payload.plantMatterOverflow || { over: false, graceTicksRemaining: 0, active: false },
           plantMatter: Number.isFinite(payload.plantMatter) ? payload.plantMatter : 0,
@@ -298,6 +303,11 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   }, [roomId, playerId]);
 
   const ownSun = hud.sun[playerId] ?? 0;
+  // Same lookup pattern as ownSun: the server sends every player's set and each
+  // client reads its own. `null` means the server didn't say, which the shop
+  // treats as no restriction — the real gate is server-side in placePlant, so a
+  // missing entry must never lock a player out of their own game.
+  const ownUnlocks = hud.plantUnlocks[playerId] ?? null;
   const shareable = !demoMode && !onePlayerMode;
 
   return (
@@ -321,7 +331,13 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
         </div>
 
         <div className="stage-seedbar">
-          <ShopBar ownSun={ownSun} selectedPlant={selectedPlant} onSelectPlant={selectPlant} plantDefs={hud.plantDefs} />
+          <ShopBar
+            ownSun={ownSun}
+            selectedPlant={selectedPlant}
+            onSelectPlant={selectPlant}
+            plantDefs={hud.plantDefs}
+            unlockedPlants={ownUnlocks}
+          />
           <div className="stage-wave">
             <span className={`mode-badge ${demoMode ? 'mode-badge--demo' : onePlayerMode ? 'mode-badge--solo' : 'mode-badge--live'}`}>
               {demoMode ? 'DEMO' : onePlayerMode ? 'SOLO' : 'LIVE'}

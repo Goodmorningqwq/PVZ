@@ -11,6 +11,14 @@ type ShopBarProps = {
   selectedPlant: string | null;
   onSelectPlant: (plantType: string) => void;
   plantDefs: Record<string, PlantDef>;
+  // Plant types this player may place. `null` means the server didn't say, in
+  // which case nothing is treated as locked — the authoritative check lives in
+  // placePlant on the server, so a client with incomplete information must
+  // fail open here rather than locking someone out of their own game.
+  //
+  // Locked plants are shown rather than hidden: an unearned plant you can see
+  // is a goal, one that's absent is invisible.
+  unlockedPlants?: string[] | null;
 };
 
 // The seed bar keeps a fixed number of cells so it doesn't visibly resize as
@@ -19,7 +27,9 @@ type ShopBarProps = {
 // an empty slot.
 const SEED_SLOT_COUNT = 5;
 
-export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDefs }: ShopBarProps) {
+export default function ShopBar({
+  ownSun, selectedPlant, onSelectPlant, plantDefs, unlockedPlants = null,
+}: ShopBarProps) {
   const plantTypes = Object.keys(plantDefs);
   const placeholderCount = Math.max(0, SEED_SLOT_COUNT - plantTypes.length);
 
@@ -27,6 +37,7 @@ export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDef
     <div className="shop-bar">
       {plantTypes.map((plantType) => {
         const def = plantDefs[plantType];
+        const locked = unlockedPlants !== null && !unlockedPlants.includes(plantType);
         const affordable = ownSun >= def.cost;
         const isSelected = selectedPlant === plantType;
         // Real sprite art, falling back to the old flat colour swatch only if
@@ -37,9 +48,10 @@ export default function ShopBar({ ownSun, selectedPlant, onSelectPlant, plantDef
           <button
             key={plantType}
             type="button"
-            className={`shop-card ${isSelected ? 'shop-card--selected' : ''} ${!affordable ? 'shop-card--disabled' : ''}`}
-            disabled={!affordable}
+            className={`shop-card ${isSelected ? 'shop-card--selected' : ''} ${!affordable && !locked ? 'shop-card--disabled' : ''} ${locked ? 'shop-card--locked' : ''}`}
+            disabled={locked || !affordable}
             onClick={() => onSelectPlant(plantType)}
+            title={locked ? `${def.label} — not unlocked yet` : undefined}
           >
             {iconUrl ? (
               <img className="shop-card-icon shop-card-icon--art" src={iconUrl} alt="" draggable={false} />

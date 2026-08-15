@@ -275,3 +275,40 @@ export const PLANT_DEFS = {
     label: 'Wall-nut',
   },
 } as const;
+
+export type PlantTypeName = keyof typeof PLANT_DEFS;
+
+// Initial timer values for a freshly placed plant, read off the def instead of
+// branching on the plant type.
+//
+// placePlant used to do this inline:
+//   cooldown: plantType === 'peashooter' ? PLANT_DEFS.peashooter.cooldownTicks : 0
+//   sunTimer: plantType === 'sunflower' ? PLANT_DEFS.sunflower.intervalTicks : 0
+//
+// which was the one hardcoded per-type site in the engine and a genuine trap: a
+// new firing plant that nobody remembered to add to that ternary would start at
+// cooldown 0 and fire on its very first eligible tick. No compile error, no
+// crash, just a plant that behaves wrong.
+//
+// PLANT_DEFS entries are a union with different fields per type, so these use
+// `in` narrowing rather than a cast — a plant without the field genuinely
+// doesn't have it, and 0 is the right answer for "no such timer".
+export function getPlantCooldownTicks(plantType: PlantTypeName): number {
+  const def = PLANT_DEFS[plantType];
+  return 'cooldownTicks' in def ? def.cooldownTicks : 0;
+}
+
+export function getPlantSunIntervalTicks(plantType: PlantTypeName): number {
+  const def = PLANT_DEFS[plantType];
+  return 'intervalTicks' in def ? def.intervalTicks : 0;
+}
+
+// Which plants a player can place before any progression is applied.
+//
+// Currently everything, so behaviour is unchanged from before unlocks existed.
+// This is the seam: once coins and progression are designed, this becomes the
+// starter set and the rest are earned. Kept as a function so it can't be
+// mutated by a caller holding the array.
+export function getDefaultUnlockedPlants(): PlantTypeName[] {
+  return Object.keys(PLANT_DEFS) as PlantTypeName[];
+}

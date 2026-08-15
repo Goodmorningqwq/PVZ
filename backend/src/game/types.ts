@@ -127,6 +127,13 @@ export type RoomState = {
   sunPickups: SunPickupState[];
   plantMatterPickups: PlantMatterPickupState[];
   sun: Record<string, number>;
+  // Which plant types each player may place, keyed by playerId — the same
+  // shape as `sun` above, and for the same reason: it lets the whole thing
+  // ride on the existing room-wide broadcast instead of forcing per-socket
+  // state payloads (which would mean re-serializing the full board per player
+  // per tick, and would break the call sites that have no player context).
+  // Each client picks its own entry, exactly as it already does for sun.
+  plantUnlocks: Record<string, PlantType[]>;
   // Shared, not per-player like `sun` — a single pool both players draw from
   // to repair/buff plants (see plantBehaviors.ts / useMatterOnPlant).
   plantMatter: number;

@@ -14,13 +14,20 @@ import {
   endGame,
   fireSlingshot,
   forceGameOver,
+  initializePlayerUnlocks,
   placePlant as placePlantCommon,
+  setPlayerUnlocks,
   removePlant as removePlantCommon,
   spawnZombieInLane,
   useMatterOnPlant as useMatterOnPlantCommon,
 } from './defaultGameEngine.js';
 
-export { broadcastState, endGame, fireSlingshot, forceGameOver, spawnZombieInLane };
+export {
+  broadcastState, endGame, fireSlingshot, forceGameOver, spawnZombieInLane,
+  // Demo mode gives everything away anyway, so unlocks pass straight through
+  // rather than being wrapped like sun and plant matter are.
+  initializePlayerUnlocks, setPlayerUnlocks,
+};
 
 const DEMO_SUN = 999999;
 const DEMO_PLANT_MATTER = 999999;

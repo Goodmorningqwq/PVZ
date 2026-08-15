@@ -53,6 +53,7 @@ export function getOrCreateRoom(roomId: string, mode: RoomMode = 'twoPlayer', di
     sunPickups: [],
     plantMatterPickups: [],
     sun: {},
+    plantUnlocks: {},
     plantMatter: 0,
     // Starts full: a fresh room is at 0 matter, nowhere near the cap.
     plantMatterOverflowGraceTicks: PLANT_MATTER_OVERFLOW_GRACE_TICKS,

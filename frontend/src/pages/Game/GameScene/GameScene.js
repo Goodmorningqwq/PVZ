@@ -151,6 +151,7 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.emit('hud-update', {
       tick,
       sun: normalizeSun(latestState?.sun),
+      plantUnlocks: latestState?.plantUnlocks && typeof latestState.plantUnlocks === 'object' ? latestState.plantUnlocks : {},
       plantMatter: Number.isFinite(latestState?.plantMatter) ? latestState.plantMatter : 0,
       plantMatterMax: Number.isFinite(latestState?.plantMatterMax) ? latestState.plantMatterMax : 0,
       plantMatterOverflow,

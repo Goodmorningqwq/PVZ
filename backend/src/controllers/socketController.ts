@@ -64,6 +64,7 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       twoPlayerGameEngine.initializePlayerSun(room, playerId);
+      twoPlayerGameEngine.initializePlayerUnlocks(room, playerId);
       roomEvents.emitRoomPlayersUpdate(roomId);
 
       if (room.started) {
@@ -124,6 +125,7 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       onePlayerGameEngine.initializePlayerSun(room, playerId);
+      onePlayerGameEngine.initializePlayerUnlocks(room, playerId);
       roomEvents.emitRoomJoined(roomId, playerId);
       roomEvents.emitState(roomId);
 
@@ -150,6 +152,7 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
       }
 
       demoGameEngine.initializePlayerSun(room, playerId);
+      demoGameEngine.initializePlayerUnlocks(room, playerId);
       roomEvents.emitRoomJoined(roomId, playerId);
       roomEvents.emitState(roomId);
 
@@ -176,6 +179,14 @@ export function registerSocketHandlers(io: SocketIOServer, roomEvents: RoomEvent
         result = twoPlayerGameEngine.placePlant(room, playerId, plantType, slotIndex);
       }
       if (!result.success) {
+        // Placement used to fail silently, per the convention for actions
+        // whose failure is self-evident — you can see the slot is occupied,
+        // and you can see your own sun. "You haven't unlocked that" is not
+        // self-evident, so this now reports back.
+        roomEvents.emitActionRejected(socket.id, {
+          action: 'place_plant',
+          reason: result.message || 'rejected',
+        });
         return;
       }
 

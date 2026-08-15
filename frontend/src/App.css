@@ -346,6 +346,15 @@
   box-sizing: border-box;
 }
 
+/* Hook only, deliberately minimal — a locked plant needs to look different
+   from one you simply can't afford, but what that looks like is a design call.
+   Styling this properly is on the visual pass. */
+.shop-card--locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
 .shop-card--empty {
   background: transparent;
   border: 2px dashed #d5dccb;
