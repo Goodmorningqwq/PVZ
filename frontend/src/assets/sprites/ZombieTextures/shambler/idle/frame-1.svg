@@ -1,0 +1,18 @@
+<svg width="64" height="108" viewBox="0 0 64 108" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shambler, frame 1 of 4: passing pose, legs together, body at its
+       highest point of the step. Everything shifts up 2px from frame 0. -->
+  <g stroke="#22301c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M35 69 L37 86 L38 101" fill="none" stroke="#3f5230" stroke-width="8" />
+    <path d="M38 43 L44 56" fill="none" stroke="#5c7a3e" stroke-width="7" />
+
+    <path d="M20 33 L44 33 L46 70 L18 70 Z" fill="#4a5a6a" />
+    <path d="M18 61 L27 66 L34 60 L41 66 L46 61 L46 70 L18 70 Z" fill="#3a4756" />
+
+    <path d="M29 69 L27 86 L25 101" fill="none" stroke="#5c7a3e" stroke-width="8" />
+    <path d="M26 43 L14 47 L7 43" fill="none" stroke="#6b8c4a" stroke-width="7" />
+
+    <circle cx="29" cy="19" r="12.5" fill="#6b8c4a" />
+    <circle cx="22" cy="17" r="2.6" fill="#22301c" stroke="none" />
+    <path d="M20 26 L30 28" fill="none" stroke="#22301c" stroke-width="2" />
+  </g>
+</svg>

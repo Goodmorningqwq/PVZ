@@ -1,0 +1,23 @@
+<svg width="96" height="163" viewBox="0 0 96 163" xmlns="http://www.w3.org/2000/svg">
+  <!-- Brute, frame 2 of 4: opposite contact. Legs and arms swap roles from
+       frame 0; the torso leans a touch further forward to sell the weight
+       transfer. -->
+  <g stroke="#1b2615" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M58 108 L48 132 L38 154" fill="none" stroke="#33421f" stroke-width="15" />
+    <path d="M64 62 L46 76 L36 72" fill="none" stroke="#4a6129" stroke-width="13" />
+
+    <path d="M22 48 L70 48 L78 110 L20 110 Z" fill="#5a4536" />
+    <path d="M26 58 L66 58 L69 78 L25 78 Z" fill="#6d5443" />
+    <path d="M20 96 L34 103 L48 94 L62 103 L78 96 L78 110 L20 110 Z" fill="#463427" />
+
+    <circle cx="26" cy="53" r="13" fill="#5f7d36" />
+    <circle cx="66" cy="53" r="13" fill="#54702f" />
+
+    <path d="M38 108 L48 132 L56 154" fill="none" stroke="#4a6129" stroke-width="15" />
+    <path d="M28 64 L42 88 L44 104" fill="none" stroke="#5f7d36" stroke-width="13" />
+
+    <circle cx="43" cy="30" r="15" fill="#5f7d36" />
+    <circle cx="34" cy="28" r="3.2" fill="#1b2615" stroke="none" />
+    <path d="M32 39 L46 41" fill="none" stroke="#1b2615" stroke-width="2.6" />
+  </g>
+</svg>

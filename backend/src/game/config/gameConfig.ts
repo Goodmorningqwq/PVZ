@@ -1,10 +1,59 @@
 export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 400;
 export const LANE_COUNT = 5;
-export const LANE_MARGIN = 40;
 export const SLOT_COUNT = 8;
-export const SLOT_MARGIN = 48;
-export const ZOMBIE_SPAWN_X = BOARD_WIDTH - 20;
+
+// --- The lawn: where the playfield actually is ------------------------------
+//
+// The board is NOT the whole canvas. gameBackground.png shows a house down the
+// left side and a fence across the top; only the grass between them is
+// plantable. The grid used to span the full 800x400, which put two entire
+// columns of placement tiles on the roof and the walkway.
+//
+// Expressed as fractions of the canvas rather than pixels, because the
+// background is drawn stretched to fill it — a fraction stays correct under
+// that stretch, and stays correct if the logical resolution is ever raised.
+//
+// Measured from the 171x96 source by scanning for the grass/not-grass boundary
+// on each edge and taking the 50% crossing:
+//   left   x ~= 45.6 / 171
+//   top    y ~= 10.9 / 96
+//   bottom y ~= 93.6 / 96
+//   right  no falloff at all — grass runs to the final column
+//
+// These are eyeballed off a very small image (one source pixel is ~4.7 board
+// px), so treat them as tuned-by-measurement rather than exact. If tiles look
+// off by a few px in play, this is the knob.
+export const LAWN_LEFT_FRACTION = 0.269;
+export const LAWN_TOP_FRACTION = 0.115;
+export const LAWN_RIGHT_FRACTION = 1.0;
+export const LAWN_BOTTOM_FRACTION = 0.979;
+
+export const LAWN_LEFT = Math.round(BOARD_WIDTH * LAWN_LEFT_FRACTION);
+export const LAWN_RIGHT = Math.round(BOARD_WIDTH * LAWN_RIGHT_FRACTION);
+export const LAWN_TOP = Math.round(BOARD_HEIGHT * LAWN_TOP_FRACTION);
+export const LAWN_BOTTOM = Math.round(BOARD_HEIGHT * LAWN_BOTTOM_FRACTION);
+
+// Zombies walk on from just beyond the right edge rather than popping into
+// existence on the grass. The lawn now reaches the canvas edge, so the old
+// BOARD_WIDTH - 20 would have spawned them almost on top of the rightmost
+// plant (763).
+//
+// Keep this offset small. Peas despawn at BOARD_WIDTH (advanceProjectiles), so
+// a zombie is literally invulnerable until it crosses x=800 — sensible, since
+// you shouldn't be able to shoot something off-screen, but it's free distance.
+// At 30px that's 1.5s for a shambler and 5s for a brute; at 60 it was 10s for
+// a brute, which measurably distorted the fight.
+export const ZOMBIE_SPAWN_X = BOARD_WIDTH + 30;
+
+// Deliberately still the canvas edge, not the lawn edge. Moving it to
+// LAWN_LEFT would be a real difficulty increase (~12s less reaction time per
+// lane), so it stays until that's a decision someone makes on purpose.
+//
+// Known wart: advancePeashooter only fires at zombies with zombie.x > slot.x,
+// so once a zombie is past the leftmost slot nothing can touch it. The walk
+// from there to x=0 is ~250px of already-decided loss. Change this to
+// LAWN_LEFT if that dead time feels bad.
 export const LAWN_BREACH_X = 0;
 
 // --- Board geometry: THE source of truth for where anything sits ------------
@@ -20,18 +69,17 @@ export const LAWN_BREACH_X = 0;
 // any change to the board size), slingshotConfig, and again on the client.
 // Nothing failed when they drifted; the only symptom was visual.
 //
-// If the playfield ever needs to stop being "the whole canvas" — e.g. inset to
-// the lawn area of a background image that has a house down one side — this is
-// the only place that has to change on the server.
+// Both now divide the lawn into evenly sized cells and return cell centres,
+// rather than insetting from the canvas by a fixed margin.
 
 export function getLaneY(laneIndex: number): number {
-  const laneSpacing = (BOARD_HEIGHT - LANE_MARGIN * 2) / (LANE_COUNT - 1);
-  return Math.round(LANE_MARGIN + laneSpacing * laneIndex);
+  const rowHeight = (LAWN_BOTTOM - LAWN_TOP) / LANE_COUNT;
+  return Math.round(LAWN_TOP + rowHeight * (laneIndex + 0.5));
 }
 
 export function getSlotX(col: number): number {
-  const slotSpacing = (BOARD_WIDTH - SLOT_MARGIN * 2) / SLOT_COUNT;
-  return Math.round(SLOT_MARGIN + slotSpacing * (col + 0.5));
+  const cellWidth = (LAWN_RIGHT - LAWN_LEFT) / SLOT_COUNT;
+  return Math.round(LAWN_LEFT + cellWidth * (col + 0.5));
 }
 
 export const TICK_RATE = Number(process.env.TICK_RATE || 20);
@@ -99,13 +147,32 @@ export const ZOMBIE_DEFS = {
   // plays: ZOMBIE_DEFS keys are species, so calling this one `boss` would
   // leave a second boss with nowhere to go.
   //
-  // Tuned as a wall that has to be focused down rather than a fast threat.
-  // 400 HP is 20 shamblers' worth — roughly 20 peashooter hits, or 7 well
-  // centred slingshot shots. Slow enough (0.3 vs the shambler's 1) that a
-  // prepared lane has time to work, but its chomp kills a peashooter in two
-  // bites instead of five, so an unprepared lane collapses fast.
+  // A wall that has to be focused down, not a fast threat.
+  //
+  // The HP looks absurd until you account for exposure time. A peashooter does
+  // 20 damage every 28 ticks = 14.3 dps, and advancePeashooter has NO range
+  // limit — every plant in the lane opens fire the moment the brute spawns,
+  // not when it gets close. At 0.3 px/tick it takes ~13 seconds just to reach
+  // the rightmost slot. The original 400 died to two peashooters before it
+  // ever made contact.
+  //
+  // Tuned by simulating real fights (plants eaten before it dies, per lane
+  // size). The fight is unstable by nature: every plant it eats cuts the dps
+  // killing it, so outcomes snap from "dies early" to "eats the whole lane"
+  // across a narrow HP band. Measured, filling the lane from the right:
+  //
+  //   hp    1p     2p     3p     4p     6p     8p
+  //   1400  eats1* eats2* eats3* eats2  eats1  eats1
+  //   1600  eats1* eats2* eats3* eats4* eats1  eats1
+  //   (* = survived and walked on)
+  //
+  // 1600 puts the cliff between 4 and 6 plants, so passive defence alone loses
+  // a 4-plant lane. That's deliberate: the slingshot adds ~20 dps on demand,
+  // roughly 1000 damage over a fight this long, which is enough to flip it. A
+  // brute is meant to be the reason you reach for the slingshot rather than
+  // something a wall of peashooters solves on its own.
   brute: {
-    hp: 400,
+    hp: 1600,
     speed: 0.3,
     label: 'Brute',
     radius: 30,
@@ -184,7 +251,11 @@ export const PLANT_DEFS = {
   peashooter: {
     cost: 100,
     hp: 100,
-    damage: 20,
+    // NOTE: no `damage` here on purpose. There used to be a `damage: 20` field
+    // that nothing read — advancePeashooter takes its damage from
+    // PROJECTILE_DEFS.pea, so this one was stale data sitting exactly where
+    // someone tuning balance would look first. Change the pea's damage in
+    // config/projectileDefs.json.
     cooldownTicks: Math.round(1.4 * TICK_RATE),
     staminaMax: STAMINA_MAX,
     label: 'Peashooter',

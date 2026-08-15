@@ -1,0 +1,37 @@
+<svg width="96" height="163" viewBox="0 0 96 163" xmlns="http://www.w3.org/2000/svg">
+  <!-- Brute, frame 0 of 4. Authored at 96x163 rather than the 64x108 used for
+       the ordinary zombies: a radius-30 body renders at 75px wide, so a 64px
+       source would be upscaled and go soft under pixelArt nearest-neighbour
+       sampling. At 96 it downscales instead and stays crisp. The 0.589 ratio
+       matches the renderer's body shape (radius * 2.5 by radius * 4.25).
+
+       Read as heavy: hunched, tiny head sunk between huge shoulders, plated
+       chest, and legs planted wide. Deliberately a different silhouette from
+       the shambler rather than a scaled-up copy of it. -->
+  <g stroke="#1b2615" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Far leg, trailing -->
+    <path d="M58 108 L66 132 L72 154" fill="none" stroke="#33421f" stroke-width="15" />
+    <!-- Far arm, dragging behind -->
+    <path d="M64 62 L79 86 L82 104" fill="none" stroke="#4a6129" stroke-width="13" />
+
+    <!-- Hulking torso -->
+    <path d="M24 48 L72 48 L78 110 L20 110 Z" fill="#5a4536" />
+    <!-- Chest plating -->
+    <path d="M28 58 L68 58 L70 78 L27 78 Z" fill="#6d5443" />
+    <path d="M20 96 L34 103 L48 94 L62 103 L78 96 L78 110 L20 110 Z" fill="#463427" />
+
+    <!-- Shoulders, wider than the head is tall -->
+    <circle cx="28" cy="53" r="13" fill="#5f7d36" />
+    <circle cx="68" cy="53" r="13" fill="#54702f" />
+
+    <!-- Near leg, planted forward -->
+    <path d="M38 108 L30 132 L22 154" fill="none" stroke="#4a6129" stroke-width="15" />
+    <!-- Near arm, reaching -->
+    <path d="M30 64 L14 78 L6 74" fill="none" stroke="#5f7d36" stroke-width="13" />
+
+    <!-- Small head, sunk between the shoulders -->
+    <circle cx="45" cy="30" r="15" fill="#5f7d36" />
+    <circle cx="36" cy="27" r="3.2" fill="#1b2615" stroke="none" />
+    <path d="M34 39 L48 41" fill="none" stroke="#1b2615" stroke-width="2.6" />
+  </g>
+</svg>

@@ -8,11 +8,24 @@ import {
   ZOMBIE_SPRITE_SIZE,
 } from '../constants';
 import { BaseRenderer } from './BaseRenderer';
+import { getAnimationKey, getPlantAnimationStates } from './spriteFrames';
 
 // Boss HP bar geometry, in board px.
 const BOSS_BAR_HEIGHT = 7;
 const BOSS_BAR_GAP = 12; // clearance above the body
 const BOSS_BAR_WIDTH_FACTOR = 1.25; // slightly wider than the body
+
+const IDLE_STATE = 'idle';
+
+// Zombie art lives at assets/sprites/ZombieTextures/<type>/idle/frame-N.svg and
+// is picked up by the same glob that finds the plants — the category folder is
+// discarded by the pattern, so no pipeline change was needed to add it.
+// Returns null for a type with no art, which keeps the rectangle fallback
+// working for anything unshipped.
+function getZombieAnimationKey(entityType) {
+  const name = String(entityType ?? '').toLowerCase();
+  return getPlantAnimationStates(name).includes(IDLE_STATE) ? getAnimationKey(name, IDLE_STATE) : null;
+}
 
 export class ZombieRenderer extends BaseRenderer {
   constructor(scene, assetsPath = '') {
@@ -41,12 +54,28 @@ export class ZombieRenderer extends BaseRenderer {
 
     let cached = this.spriteCache.get(id);
     if (!cached) {
-      const sprite = this.scene.add
-        .rectangle(entity.x, entity.y, width, height, isBoss ? BOSS_ZOMBIE_COLOR : ZOMBIE_COLOR)
-        .setStrokeStyle(isBoss ? 3 : 2, isBoss ? 0x4a1f14 : 0x3a2517);
+      const animationKey = getZombieAnimationKey(entity.type);
+      let sprite;
+
+      if (animationKey) {
+        sprite = this.scene.add.sprite(entity.x, entity.y).play(animationKey);
+        // Scale the art to the body size the server's radius implies. Read the
+        // natural size off the texture frame rather than hardcoding each SVG's
+        // dimensions — frame.width is unaffected by setScale, so this stays
+        // correct if the art is ever re-authored at a different size.
+        const naturalWidth = sprite.frame?.width || width;
+        sprite.setScale(width / naturalWidth);
+      } else {
+        // No art for this type yet — fall back to the old flat rectangle so a
+        // new zombie type is always visible, just plain.
+        sprite = this.scene.add
+          .rectangle(entity.x, entity.y, width, height, isBoss ? BOSS_ZOMBIE_COLOR : ZOMBIE_COLOR)
+          .setStrokeStyle(isBoss ? 3 : 2, isBoss ? 0x4a1f14 : 0x3a2517);
+      }
+
       sprite.setOrigin(0.5);
 
-      cached = { sprite, height, isBoss, hpLabel: null, barBg: null, barFill: null };
+      cached = { sprite, height, isBoss, animated: Boolean(animationKey), hpLabel: null, barBg: null, barFill: null };
 
       if (isBoss) {
         const barWidth = width * BOSS_BAR_WIDTH_FACTOR;
@@ -78,7 +107,14 @@ export class ZombieRenderer extends BaseRenderer {
     }
 
     cached.sprite.setPosition(entity.x, entity.y);
-    cached.sprite.setScale(size);
+    // An art sprite already carries the scale that maps its texture onto the
+    // server's body radius; re-applying the caller's `size` here would stomp
+    // it and snap every zombie back to raw texture size. The rectangle
+    // fallback is built at the right dimensions directly, so `size` only
+    // applies to that.
+    if (!cached.animated) {
+      cached.sprite.setScale(size);
+    }
 
     if (cached.isBoss) {
       const barY = entity.y - (cached.height / 2) - BOSS_BAR_GAP;

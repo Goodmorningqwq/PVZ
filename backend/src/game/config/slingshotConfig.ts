@@ -1,4 +1,4 @@
-import { getLaneY } from './gameConfig.js';
+import { LAWN_LEFT, getLaneY } from './gameConfig.js';
 
 // Row 3 (0-indexed lane 2). This used to re-implement the lane-Y formula
 // locally, with a comment explaining that config files stay dependency-free of
@@ -6,7 +6,16 @@ import { getLaneY } from './gameConfig.js';
 // conclusion wasn't — the formula belongs in the config alongside the
 // constants it reads, not in the engine, so it can just be imported.
 export const SLINGSHOT_LANE_INDEX = 2;
-export const SLINGSHOT_X = 28;
+
+// Sits just off the left edge of the grass, on the walkway — the defender's
+// side of the lawn, firing onto it.
+//
+// This used to be a hardcoded 28, from when the playfield was the whole
+// canvas. Now that the grid is inset to the lawn, x=28 is the brick roof of
+// the house, which would have left the fork buried in the scenery. Deriving it
+// from LAWN_LEFT keeps it planted at the lawn's edge if that boundary is ever
+// retuned.
+export const SLINGSHOT_X = Math.max(20, LAWN_LEFT - 30);
 export const SLINGSHOT_Y = getLaneY(SLINGSHOT_LANE_INDEX);
 
 // Drag-to-aim. The pull vector is clamped to this radius (board px), and only

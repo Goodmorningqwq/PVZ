@@ -1,0 +1,17 @@
+<svg width="64" height="108" viewBox="0 0 64 108" xmlns="http://www.w3.org/2000/svg">
+  <!-- Runner, frame 3 of 4: second airborne pose, closing the loop. -->
+  <g stroke="#22301c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M37 67 L35 80 L31 93" fill="none" stroke="#3f5230" stroke-width="7" />
+    <path d="M39 41 L29 44 L22 38" fill="none" stroke="#5c7a3e" stroke-width="6" />
+
+    <path d="M23 30 L46 33 L45 68 L20 67 Z" fill="#7a3b3b" />
+    <path d="M20 59 L29 63 L36 57 L43 63 L45 59 L45 68 L20 67 Z" fill="#5e2c2c" />
+
+    <path d="M28 67 L33 80 L36 93" fill="none" stroke="#5c7a3e" stroke-width="7" />
+    <path d="M26 41 L37 50" fill="none" stroke="#6b8c4a" stroke-width="6" />
+
+    <circle cx="28" cy="17" r="11.5" fill="#6b8c4a" />
+    <circle cx="21" cy="16" r="2.5" fill="#22301c" stroke="none" />
+    <path d="M19 25 L29 26" fill="none" stroke="#22301c" stroke-width="2" />
+  </g>
+</svg>

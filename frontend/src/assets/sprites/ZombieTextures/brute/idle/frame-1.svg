@@ -1,0 +1,23 @@
+<svg width="96" height="163" viewBox="0 0 96 163" xmlns="http://www.w3.org/2000/svg">
+  <!-- Brute, frame 1 of 4: passing pose. Lifts only 2px against a 163px frame
+       - a heavy thing shouldn't bounce, and keeping the vertical travel small
+       is what separates "lumbering" from "jogging". -->
+  <g stroke="#1b2615" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M56 106 L60 130 L62 153" fill="none" stroke="#33421f" stroke-width="15" />
+    <path d="M64 60 L78 84 L80 102" fill="none" stroke="#4a6129" stroke-width="13" />
+
+    <path d="M24 46 L72 46 L78 108 L20 108 Z" fill="#5a4536" />
+    <path d="M28 56 L68 56 L70 76 L27 76 Z" fill="#6d5443" />
+    <path d="M20 94 L34 101 L48 92 L62 101 L78 94 L78 108 L20 108 Z" fill="#463427" />
+
+    <circle cx="28" cy="51" r="13" fill="#5f7d36" />
+    <circle cx="68" cy="51" r="13" fill="#54702f" />
+
+    <path d="M40 106 L36 130 L32 153" fill="none" stroke="#4a6129" stroke-width="15" />
+    <path d="M30 62 L14 73 L5 68" fill="none" stroke="#5f7d36" stroke-width="13" />
+
+    <circle cx="45" cy="28" r="15" fill="#5f7d36" />
+    <circle cx="36" cy="25" r="3.2" fill="#1b2615" stroke="none" />
+    <path d="M34 37 L48 39" fill="none" stroke="#1b2615" stroke-width="2.6" />
+  </g>
+</svg>

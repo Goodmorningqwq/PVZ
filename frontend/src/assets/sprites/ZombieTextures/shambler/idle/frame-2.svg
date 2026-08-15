@@ -1,0 +1,23 @@
+<svg width="64" height="108" viewBox="0 0 64 108" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shambler, frame 2 of 4: opposite contact pose. The legs swap roles from
+       frame 0 and the arms counter-swing, which is what sells it as walking
+       rather than sliding. -->
+  <g stroke="#22301c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Far leg now leads -->
+    <path d="M37 71 L32 88 L27 102" fill="none" stroke="#3f5230" stroke-width="8" />
+    <!-- Far arm swings forward -->
+    <path d="M38 45 L28 54" fill="none" stroke="#5c7a3e" stroke-width="7" />
+
+    <path d="M20 35 L44 35 L46 72 L18 72 Z" fill="#4a5a6a" />
+    <path d="M18 63 L27 68 L34 62 L41 68 L46 63 L46 72 L18 72 Z" fill="#3a4756" />
+
+    <!-- Near leg trails -->
+    <path d="M27 71 L33 88 L38 102" fill="none" stroke="#5c7a3e" stroke-width="8" />
+    <!-- Near arm reaches further out -->
+    <path d="M26 45 L13 52 L4 51" fill="none" stroke="#6b8c4a" stroke-width="7" />
+
+    <circle cx="29" cy="21" r="12.5" fill="#6b8c4a" />
+    <circle cx="22" cy="19" r="2.6" fill="#22301c" stroke="none" />
+    <path d="M20 28 L30 30" fill="none" stroke="#22301c" stroke-width="2" />
+  </g>
+</svg>

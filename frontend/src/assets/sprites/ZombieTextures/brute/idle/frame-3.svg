@@ -1,0 +1,22 @@
+<svg width="96" height="163" viewBox="0 0 96 163" xmlns="http://www.w3.org/2000/svg">
+  <!-- Brute, frame 3 of 4: second passing pose, closing the loop back to
+       frame 0. -->
+  <g stroke="#1b2615" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M56 106 L52 130 L48 153" fill="none" stroke="#33421f" stroke-width="15" />
+    <path d="M64 60 L50 82 L46 100" fill="none" stroke="#4a6129" stroke-width="13" />
+
+    <path d="M23 46 L71 46 L78 108 L20 108 Z" fill="#5a4536" />
+    <path d="M27 56 L67 56 L69 76 L26 76 Z" fill="#6d5443" />
+    <path d="M20 94 L34 101 L48 92 L62 101 L78 94 L78 108 L20 108 Z" fill="#463427" />
+
+    <circle cx="27" cy="51" r="13" fill="#5f7d36" />
+    <circle cx="67" cy="51" r="13" fill="#54702f" />
+
+    <path d="M40 106 L44 130 L46 153" fill="none" stroke="#4a6129" stroke-width="15" />
+    <path d="M29 62 L15 80 L8 78" fill="none" stroke="#5f7d36" stroke-width="13" />
+
+    <circle cx="46" cy="28" r="15" fill="#5f7d36" />
+    <circle cx="37" cy="26" r="3.2" fill="#1b2615" stroke="none" />
+    <path d="M35 37 L49 39" fill="none" stroke="#1b2615" stroke-width="2.6" />
+  </g>
+</svg>
