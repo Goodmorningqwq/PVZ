@@ -142,6 +142,11 @@ export default function App() {
 
       setConfirmedRoomId(joinedRoomId);
       setConnected(true);
+      // Getting in clears any earlier "that room is busy" rejection. Nothing
+      // used to reset this flag anywhere, so a single rejection pinned the
+      // GameInProgress screen until a manual reload — even after the match it
+      // was complaining about had finished.
+      setRoomInProgress(false);
 
       // Demo/solo rooms only ever hold one player, so joining means playing.
       // A twoPlayer room only jumps straight in here if it was already
@@ -204,6 +209,8 @@ export default function App() {
         onBack={backToModeSelect}
         onStartSolo={startSolo}
         onStartMultiplayer={startMultiplayer}
+        difficulty={difficulty}
+        onDifficultyChange={setDifficulty}
       />
     );
   }
@@ -225,6 +232,7 @@ export default function App() {
         capacity={waitingCapacity}
         canStart={canStart}
         onStartGame={handleStartGame}
+        playerId={playerId}
       />
     );
   }

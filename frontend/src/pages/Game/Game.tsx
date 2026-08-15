@@ -7,6 +7,7 @@ import SunMeter from './SunMeter/SunMeter';
 import Shovel from './Shovel/Shovel';
 import GameScene from './GameScene/GameScene';
 import { GAME_WIDTH, GAME_HEIGHT, SERVER_TICK_RATE, SLOT_RADIUS } from './GameScene/constants';
+import { backToMenu, copyInviteLink, shortId } from '../shared/session';
 
 type GameProps = {
   roomId: string;
@@ -28,8 +29,11 @@ type PlantMatterOverflow = {
   active: boolean;
 };
 
+// Deliberately no `tick`. It used to be stored here and set from every
+// hud-update, which forced a React re-render 20 times a second for a value
+// nothing ever rendered. GameScene already tracks the tick itself
+// (lastRenderedTick) to decide when to redraw.
 type HudState = {
-  tick: number;
   sun: Record<string, number>;
   plantMatter: number;
   plantMatterMax: number;
@@ -46,7 +50,6 @@ type GameOverInfo = {
 };
 
 const initialHud: HudState = {
-  tick: 0,
   sun: {},
   plantMatter: 0,
   plantMatterMax: 0,
@@ -80,16 +83,6 @@ function waveStatusLabel(waveStatus: string, wave: number, totalWaves: number) {
   if (waveStatus === 'complete') return 'All waves cleared!';
   if (totalWaves > 0) return `Wave ${wave} / ${totalWaves}`;
   return `Wave ${wave}`;
-}
-
-// Session IDs are long UUIDs meant for the wire, not for a human to read.
-// Shorten them for display until real display names exist.
-function shortId(id: string) {
-  return id ? id.slice(0, 8) : '';
-}
-
-function backToMenu() {
-  window.location.href = window.location.pathname;
 }
 
 export default function Game({ roomId, playerId, demoMode, onePlayerMode, socketStatus, connected }: GameProps) {
@@ -184,14 +177,11 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
     emitUseMatterOnPlant({ roomId, playerId, slotIndex: nearestSlot.index });
   }
 
-  async function copyInviteLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setLinkCopied(true);
+  async function handleCopyInviteLink() {
+    const ok = await copyInviteLink();
+    setLinkCopied(ok);
+    if (ok) {
       window.setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      // Clipboard API can fail (permissions, insecure context) — fail silently,
-      // the room code is still visible for manual sharing.
     }
   }
 
@@ -260,7 +250,6 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
       }) => {
         setHud((current) => ({
           ...current,
-          tick: payload.tick,
           sun: payload.sun || {},
           plantMatterMax: Number.isFinite(payload.plantMatterMax) ? payload.plantMatterMax : 0,
           plantMatterOverflow: payload.plantMatterOverflow || { over: false, graceTicksRemaining: 0, active: false },
@@ -319,7 +308,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           {demoMode ? 'Demo mode' : onePlayerMode ? 'Solo mode' : `Room ${roomId}`}
           {' '}• Player {shortId(playerId)}
           {shareable && (
-            <button className="copy-link-button" type="button" onClick={copyInviteLink}>
+            <button className="copy-link-button" type="button" onClick={handleCopyInviteLink}>
               {linkCopied ? 'Copied!' : 'Copy invite link'}
             </button>
           )}

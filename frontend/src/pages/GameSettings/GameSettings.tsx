@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
+export const ROOM_CODE_LENGTH = 5;
 
-export function generateRoomCode(length = 5) {
+export function generateRoomCode(length = ROOM_CODE_LENGTH) {
   let code = '';
   for (let i = 0; i < length; i += 1) {
     code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
@@ -23,22 +24,37 @@ type GameSettingsProps = {
   onBack: () => void;
   onStartSolo: (difficulty: Difficulty) => void;
   onStartMultiplayer: (roomId: string, difficulty: Difficulty) => void;
+  // Owned by App so it survives Back and re-entry. This screen used to keep
+  // its own copy alongside App's, which meant Settings -> Back -> Settings
+  // silently reset the picker to Medium regardless of what was actually set.
+  difficulty: Difficulty;
+  onDifficultyChange: (difficulty: Difficulty) => void;
 };
 
-export default function GameSettings({ mode, onBack, onStartSolo, onStartMultiplayer }: GameSettingsProps) {
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+export default function GameSettings({
+  mode, onBack, onStartSolo, onStartMultiplayer, difficulty, onDifficultyChange,
+}: GameSettingsProps) {
   const [codeInput, setCodeInput] = useState('');
+  // Guards against a double-click generating two different codes and racing
+  // them — handleCreateRoom rolls a fresh one on every call, and the second
+  // used to win.
+  const startedRef = useRef(false);
 
   function handleJoinSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const trimmed = codeInput.trim().toUpperCase();
-    if (!trimmed) {
+    const trimmed = codeInput.trim();
+    if (!trimmed || startedRef.current) {
       return;
     }
+    startedRef.current = true;
     onStartMultiplayer(trimmed, difficulty);
   }
 
   function handleCreateRoom() {
+    if (startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
     onStartMultiplayer(generateRoomCode(), difficulty);
   }
 
@@ -54,7 +70,8 @@ export default function GameSettings({ mode, onBack, onStartSolo, onStartMultipl
               key={option.value}
               type="button"
               className={`difficulty-option${difficulty === option.value ? ' difficulty-option--selected' : ''}`}
-              onClick={() => setDifficulty(option.value)}
+              onClick={() => onDifficultyChange(option.value)}
+              aria-pressed={difficulty === option.value}
             >
               <span className="difficulty-option-label">{option.label}</span>
               <span className="difficulty-option-description">{option.description}</span>
@@ -76,10 +93,15 @@ export default function GameSettings({ mode, onBack, onStartSolo, onStartMultipl
                 autoCapitalize="characters"
                 autoCorrect="off"
                 spellCheck={false}
-                maxLength={8}
+                maxLength={ROOM_CODE_LENGTH}
                 placeholder="Room Code"
                 value={codeInput}
-                onChange={(event) => setCodeInput(event.target.value)}
+                // Uppercase at the source, not at submit. The field only
+                // *looked* uppercase via CSS text-transform, so state held
+                // whatever was typed and anything reading codeInput directly
+                // got the lowercase string.
+                onChange={(event) => setCodeInput(event.target.value.toUpperCase())}
+                autoFocus
               />
               <button className="menu-primary-button" type="submit" disabled={!codeInput.trim()}>
                 Join

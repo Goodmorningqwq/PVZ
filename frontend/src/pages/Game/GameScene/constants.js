@@ -1,4 +1,3 @@
-export const TOWER_COLOR = 0x3f8f4a;
 export const ZOMBIE_COLOR = 0x8a6242;
 // Boss-tier zombies (ZOMBIE_DEFS entries with boss: true) get a darker, redder
 // body so they read as a different threat class at a glance rather than just

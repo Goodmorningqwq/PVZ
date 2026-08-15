@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { backToMenu, copyInviteLink, shortId } from '../shared/session';
 
 type WaitingRoomProps = {
   roomId: string;
@@ -9,7 +10,12 @@ type WaitingRoomProps = {
   capacity?: number;
   canStart?: boolean;
   onStartGame?: () => void;
+  // Marks which entry in the player list is you. Optional so the demo/solo
+  // branches, which have no list, don't have to pass it.
+  playerId?: string;
 };
+
+type CopyState = 'idle' | 'copied' | 'failed';
 
 export default function WaitingRoom({
   roomId,
@@ -20,18 +26,36 @@ export default function WaitingRoom({
   capacity = 2,
   canStart = false,
   onStartGame,
+  playerId = '',
 }: WaitingRoomProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const copyResetRef = useRef<number | null>(null);
 
-  async function copyInviteLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API can fail (permissions, insecure context) — the code is
-      // still visible on screen for manual sharing.
+  // The reset timer outlives the component otherwise: the room filling up
+  // unmounts this screen, and the pending setState then fires against a dead
+  // component.
+  useEffect(() => () => {
+    if (copyResetRef.current) {
+      window.clearTimeout(copyResetRef.current);
     }
+  }, []);
+
+  async function handleCopy() {
+    const ok = await copyInviteLink();
+    setCopyState(ok ? 'copied' : 'failed');
+
+    if (copyResetRef.current) {
+      window.clearTimeout(copyResetRef.current);
+    }
+    copyResetRef.current = window.setTimeout(() => setCopyState('idle'), 2000);
+  }
+
+  function copyLabel() {
+    if (copyState === 'copied') return 'Link copied!';
+    // Previously a failed copy left the label unchanged, which is
+    // indistinguishable from the click not registering.
+    if (copyState === 'failed') return `Copy failed — code is ${roomId}`;
+    return 'Copy invite link';
   }
 
   return (
@@ -59,8 +83,8 @@ export default function WaitingRoom({
                 Start Game
               </button>
             ) : (
-              <button className="menu-primary-button" type="button" onClick={copyInviteLink}>
-                {copied ? 'Link copied!' : 'Copy invite link'}
+              <button className="menu-primary-button" type="button" onClick={handleCopy}>
+                {copyLabel()}
               </button>
             )}
 
@@ -70,7 +94,10 @@ export default function WaitingRoom({
             {players.length > 0 && (
               <ul className="waiting-player-list">
                 {players.map((id) => (
-                  <li key={id}>{id}</li>
+                  <li key={id}>
+                    {shortId(id)}
+                    {id === playerId && ' (you)'}
+                  </li>
                 ))}
               </ul>
             )}
@@ -85,7 +112,16 @@ export default function WaitingRoom({
           </div>
         )}
 
-        <p className="waiting-status">{statusText}</p>
+        {/* aria-live so the state changes this screen exists to report —
+            "Room full", "Game in progress" — are actually announced. */}
+        <p className="waiting-status" aria-live="polite">{statusText}</p>
+
+        {/* There was previously no way off this screen at all. Back doesn't
+            help either: every transition into here used history.replaceState,
+            so no history entry was ever pushed. */}
+        <button className="menu-link-button" type="button" onClick={backToMenu}>
+          Leave room
+        </button>
       </div>
     </div>
   );

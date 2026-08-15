@@ -204,10 +204,6 @@
   color: #7a8a72;
 }
 
-.hud-line {
-  color: #5c6b54;
-}
-
 .mode-badge {
   align-self: flex-start;
   padding: 2px 8px;
@@ -245,11 +241,6 @@
   font-family: system-ui, sans-serif;
   font-size: 12px;
   pointer-events: none;
-}
-
-.hud-line--wave {
-  color: #8a6a1e;
-  font-weight: 600;
 }
 
 /* Shop bar */
