@@ -526,6 +526,17 @@
   color: #d8dccb;
 }
 
+/* Ducked while the player is actually dragging plant matter. The alert sits
+   over the middle of the board and tells you to drop matter on a plant — so
+   players aim at the message, land on empty grass, and get the by-design
+   silent no-op. Fading it out mid-drag hands the board back at exactly the
+   moment it's needed, without moving the alert off centre. */
+.overflow-alert--ducked {
+  opacity: 0.12;
+  animation: none;
+  transition: opacity 0.12s ease-out;
+}
+
 /* Penalty live: red, larger, and pulsing. The canvas shake is separate — it's
    a Phaser camera effect, so it can't be done here. */
 .overflow-alert--active {

@@ -100,6 +100,10 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
   const [gameOverInfo, setGameOverInfo] = useState<GameOverInfo | null>(null);
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [shovelActive, setShovelActive] = useState(false);
+  // True while the plant matter handle is being dragged. Used only to fade the
+  // overflow alert out of the way — it sits over the middle of the board, and
+  // the thing it asks you to do is aim at a plant underneath it.
+  const [matterDragging, setMatterDragging] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const actionToastTimeoutRef = useRef<number | null>(null);
 
@@ -345,6 +349,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
             plantMatterMax={hud.plantMatterMax}
             overflow={hud.plantMatterOverflow}
             onDrop={handleMatterDrop}
+            onDragStateChange={setMatterDragging}
           />
         </div>
 
@@ -364,7 +369,7 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
               shake that accompanies the second state is a Phaser camera
               effect driven from GameScene, not CSS. */}
           {hud.plantMatterOverflow.over && !hud.plantMatterOverflow.active && (
-            <div className="overflow-alert" role="status">
+            <div className={`overflow-alert ${matterDragging ? 'overflow-alert--ducked' : ''}`} role="status">
               <span className="overflow-alert-title">Over capacity</span>
               <span className="overflow-alert-sub">
                 Spend within {Math.ceil(hud.plantMatterOverflow.graceTicksRemaining / SERVER_TICK_RATE)}s
@@ -373,9 +378,12 @@ export default function Game({ roomId, playerId, demoMode, onePlayerMode, socket
           )}
 
           {hud.plantMatterOverflow.active && (
-            <div className="overflow-alert overflow-alert--active" role="alert">
+            <div
+              className={`overflow-alert overflow-alert--active ${matterDragging ? 'overflow-alert--ducked' : ''}`}
+              role="alert"
+            >
               <span className="overflow-alert-title">Use your plant matter</span>
-              <span className="overflow-alert-sub">Plants are slowed</span>
+              <span className="overflow-alert-sub">Drag matter onto a plant</span>
             </div>
           )}
 

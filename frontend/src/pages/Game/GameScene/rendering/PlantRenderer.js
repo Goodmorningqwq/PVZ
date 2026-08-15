@@ -13,10 +13,16 @@ const IDLE_STATE = 'idle';
 const TIRED_TINT = 0x8a95a6;
 const BUFFED_TINT = 0xffe08a;
 // Plant matter overflow: a sickly over-fed green, distinct from both the grey
-// of tired and the gold of buffed. Ranks below tired (a tired plant is the
-// more urgent problem and the one you can actually fix by clicking it) but
-// above buffed, since while overflowing a "buffed" plant is still net slower
-// than normal and showing it as gold would be a lie.
+// of tired and the gold of buffed.
+//
+// Ranks BELOW buffed, deliberately. It originally outranked it, on the
+// reasoning that a buffed plant during overflow is still net slower than a
+// normal one so gold would overstate it. That was wrong in practice: it meant
+// feeding a plant during overflow produced no visible change at all, so
+// players concluded plant matter didn't work during overflow and stopped
+// trying — while overflow is exactly when they most need to spend. The buff is
+// real (56 ticks down to 38, ~32% faster), and confirming the action the
+// player just took matters more than grading it. Tired still outranks both.
 const OVERFLOWED_TINT = 0x9fbf6a;
 
 function normalizePlantName(entityType) {
@@ -88,10 +94,10 @@ export class PlantRenderer extends BaseRenderer {
 
     if (entity.tired) {
       activeSprite.sprite.setTint(TIRED_TINT);
-    } else if (entity.overflowed) {
-      activeSprite.sprite.setTint(OVERFLOWED_TINT);
     } else if (entity.buffed) {
       activeSprite.sprite.setTint(BUFFED_TINT);
+    } else if (entity.overflowed) {
+      activeSprite.sprite.setTint(OVERFLOWED_TINT);
     } else {
       activeSprite.sprite.clearTint();
     }

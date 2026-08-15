@@ -19,6 +19,10 @@ type PlantMatterBarProps = {
   // Deliberately pageX/pageY (not clientX/clientY): Phaser's
   // ScaleManager.transformX/Y expect page-relative coordinates.
   onDrop: (pageX: number, pageY: number) => void;
+  // Raised so the overflow alert can duck out of the way mid-drag — it sits
+  // over the middle of the board, which is exactly where a player aims when
+  // it tells them to spend matter.
+  onDragStateChange?: (dragging: boolean) => void;
 };
 
 // Fallback only, for the brief window before the first state_update arrives.
@@ -28,10 +32,17 @@ type PlantMatterBarProps = {
 // real consequences so the bar has to draw against the actual threshold.
 const FALLBACK_BAR_MAX = 400;
 
-export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, onDrop }: PlantMatterBarProps) {
+export default function PlantMatterBar({
+  plantMatter, plantMatterMax, overflow, onDrop, onDragStateChange,
+}: PlantMatterBarProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
   const activePointerId = useRef<number | null>(null);
+
+  function setDragging(dragging: boolean) {
+    setIsDragging(dragging);
+    onDragStateChange?.(dragging);
+  }
 
   const barMax = plantMatterMax > 0 ? plantMatterMax : FALLBACK_BAR_MAX;
   const fillPercent = Math.max(0, Math.min(100, (plantMatter / barMax) * 100));
@@ -39,7 +50,7 @@ export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
     activePointerId.current = event.pointerId;
-    setIsDragging(true);
+    setDragging(true);
     setGhostPos({ x: event.clientX, y: event.clientY });
   }
 
@@ -60,7 +71,7 @@ export default function PlantMatterBar({ plantMatter, plantMatterMax, overflow, 
     }
 
     activePointerId.current = null;
-    setIsDragging(false);
+    setDragging(false);
     setGhostPos(null);
 
     if (shouldDrop) {
